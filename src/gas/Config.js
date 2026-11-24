@@ -4,18 +4,43 @@
  */
 
 /**
- * アプリケーション設定オブジェクト
+ * 情報取得元サイトの定義
  */
+const TARGET_SITES = [
+  {
+    id: 'ipa',
+    name: 'IPA 独立行政法人情報処理推進機構',
+    url: 'https://www.ipa.go.jp/news/index.html',
+    category: '試験情報' // docs/01_overview.md の ?=exam に対応
+  },
+  {
+    id: 'aws_blog',
+    name: 'AWS Training and Certification ブログ（日本語）',
+    url: 'https://aws.amazon.com/jp/blogs/news/category/aws-training-and-certification/'
+  },
+  {
+    id: 'aws_coming_soon',
+    name: '近日公開の AWS 認定（AWS Certification Coming Soon）',
+    url: 'https://aws.amazon.com/jp/certification/coming-soon/'
+  },
+  {
+    id: 'gcp_blog',
+    name: 'Google Cloud 公式ブログ（トレーニングと認定）',
+    url: 'https://cloud.google.com/blog/ja/topics/training-certifications'
+  },
+  {
+    id: 'ms_skills_hub',
+    name: 'The Skills Hub Blog（Microsoft Community Hub）',
+    url: 'https://techcommunity.microsoft.com/category/skills-hub/blog/skills-hub-blog'
+  }
+];
+
 const CONFIG = {
-  // IPA新着情報の取得元URL
-  IPA_NEWS_URL: 'https://www.ipa.go.jp/news/index.html',
-  
-  // 抽出対象のカテゴリ（空文字またはnullの場合は全件取得）
-  // docs/01_overview.md で「?=exam」が指定されているため、デフォルトは「試験情報」
-  TARGET_CATEGORY: '試験情報',
+  // 情報取得元サイト一覧
+  TARGET_SITES: TARGET_SITES,
 
   // 未連携チェックで保持する過去の投稿済みURLの最大保持件数
-  MAX_HISTORY_COUNT: 200,
+  MAX_HISTORY_COUNT: 500,
 
   /**
    * スクリプトプロパティから設定値を取得

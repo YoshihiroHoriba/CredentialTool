@@ -5,8 +5,11 @@
 
 const SlackService = {
   /**
-   * 新着情報（試験情報など）をSlack（#all-資格情報変更通知）に投稿
-   * @param {Object} newsItem 新着情報オブジェクト { date, title, url, category }
+   * 新着情報をSlack（#all-資格情報変更通知）に投稿
+   * docs/01_overview.md の要件:
+   * 「投稿内容は、日付、タイトル、詳細は[こちら](URL) のスタイルで投稿する」
+   * 
+   * @param {Object} newsItem 新着情報オブジェクト { date, title, url, siteName }
    */
   postNews(newsItem) {
     const webhookUrl = CONFIG.getNotifyWebhookUrl();
@@ -14,103 +17,93 @@ const SlackService = {
       throw new Error('通知用のSlack Webhook URL（SLACK_WEBHOOK_URL_NOTIFY）が設定されていません。');
     }
 
-    const message = {
-      text: `【IPA新着情報】${newsItem.title}\n${newsItem.url}`,
+    // 指定のフォーマット:
+    // 日付
+    // タイトル
+    // 詳細は<URL|こちら>
+    const formattedDate = newsItem.date || '日付不明';
+    const textMessage = `${formattedDate}\n${newsItem.title}\n詳細は<${newsItem.url}|こちら>`;
+
+    const payload = {
+      text: textMessage,
       blocks: [
-        {
-          type: 'header',
-          text: {
-            type: 'plain_text',
-            text: '📢 資格情報 新着通知 (IPA)',
-            emoji: true
-          }
-        },
-        {
-          type: 'section',
-          fields: [
-            {
-              type: 'mrkdwn',
-              text: `*日付:*\n${newsItem.date || '日付不明'}`
-            },
-            {
-              type: 'mrkdwn',
-              text: `*カテゴリ:*\n${newsItem.category || '試験情報'}`
-            }
-          ]
-        },
         {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `*タイトル:*\n<${newsItem.url}|${newsItem.title}>`
+            text: textMessage
           }
-        },
-        {
-          type: 'context',
-          elements: [
-            {
-              type: 'mrkdwn',
-              text: `取得元: <${newsItem.url}|${newsItem.url}>`
-            }
-          ]
         }
       ]
     };
 
-    this._sendRequest(webhookUrl, message);
+    this._sendRequest(webhookUrl, payload);
   },
 
   /**
-   * エラー情報をSlack（CWC_堀場義弘宛てDM等のWebhook）に投稿
-   * @param {string} targetUrl スクレイピングまたは処理対象のアドレス
-   * @param {Error|string} error 発生したエラー
+   * 収集したエラー群をまとめてSlack（CWC_堀場義弘宛てDM等のWebhook）に投稿
+   * docs/01_overview.md の要件:
+   * 「エラー応答（ステータスコードが200以外）は、まとめてエラー情報投稿先に投稿する」
+   * 「スクレイピングエラーもまとめて情報取得元も含めてエラー情報投稿先に投稿する」
+   * 
+   * @param {Array<Object>} errors エラー情報の配列 [{ siteName, url, errorType, message }]
    */
-  postError(targetUrl, error) {
+  postAggregatedErrors(errors) {
+    if (!errors || errors.length === 0) return;
+
     const webhookUrl = CONFIG.getErrorWebhookUrl();
     if (!webhookUrl) {
-      console.error('エラー通知用のSlack Webhook URL（SLACK_WEBHOOK_URL_ERROR）が設定されていません。ログのみ出力します。', error);
+      console.error('エラー通知用のSlack Webhook URL（SLACK_WEBHOOK_URL_ERROR）が未設定です。ログのみ出力します。', errors);
       return;
     }
 
-    const errorMessage = error instanceof Error ? `${error.message}\n${error.stack || ''}` : String(error);
-    const message = {
-      text: `⚠️ [エラー報告] 資格情報更新確認処理でエラーが発生しました。\n対象: ${targetUrl}\n内容: ${errorMessage}`,
+    let summaryText = `⚠️ 【資格情報更新確認】以下の情報取得元でエラーが発生しました（計 ${errors.length} 件）:\n\n`;
+    const fields = [];
+
+    errors.forEach((err, index) => {
+      const errDetail = `*${index + 1}. ${err.siteName}*\nURL: ${err.url}\nエラー種別: ${err.errorType}\n詳細: \`${err.message.slice(0, 300)}\`\n`;
+      summaryText += errDetail + '\n';
+    });
+
+    const payload = {
+      text: summaryText,
       blocks: [
         {
           type: 'header',
           text: {
             type: 'plain_text',
-            text: '⚠️ 資格情報更新確認ツール エラー発生',
+            text: '⚠️ 資格情報更新確認ツール エラー集約報告',
             emoji: true
           }
         },
         {
           type: 'section',
-          fields: [
-            {
-              type: 'mrkdwn',
-              text: `*発生日時:*\n${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`
-            },
-            {
-              type: 'mrkdwn',
-              text: `*対象アドレス:*\n${targetUrl || 'N/A'}`
-            }
-          ]
-        },
-        {
-          type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `*エラー詳細:*\n\`\`\`${errorMessage.slice(0, 1500)}\`\`\``
+            text: `*発生日時:* ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}\n*エラー発生件数:* ${errors.length} 件`
           }
+        },
+        {
+          type: 'divider'
         }
       ]
     };
 
+    // 各エラーの詳細ブロックを追加（Slackブロック数制限50を考慮）
+    errors.slice(0, 10).forEach((err, index) => {
+      payload.blocks.push({
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*${index + 1}. ${err.siteName}*\n• *URL:* <${err.url}|${err.url}>\n• *種別:* ${err.errorType}\n• *エラー内容:*\n\`\`\`${err.message.slice(0, 500)}\`\`\``
+        }
+      });
+    });
+
     try {
-      this._sendRequest(webhookUrl, message);
+      this._sendRequest(webhookUrl, payload);
     } catch (e) {
-      console.error('エラー通知の送信自体に失敗しました:', e);
+      console.error('集約エラー通知の送信に失敗しました:', e);
     }
   },
 

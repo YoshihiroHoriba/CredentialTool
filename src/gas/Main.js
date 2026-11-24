@@ -4,92 +4,151 @@
  */
 
 /**
- * IPA新着情報の更新確認およびSlack通知のメイン関数
- * 平日定期実行トリガーから呼び出されます。
+ * 全情報取得元の新着情報更新確認およびSlack通知のメイン関数
+ * 平日朝9:00の定期実行トリガーから呼び出されます。
  */
-function checkIpaNewsUpdates() {
-  const targetUrl = CONFIG.IPA_NEWS_URL;
-  console.log(`[開始] IPA新着情報の確認処理を開始します。取得元: ${targetUrl}`);
+function executeDailyCredentialCheck() {
+  console.log('[開始] 全資格情報サイトの更新確認処理を開始します。');
 
-  try {
-    // 1. IPA新着情報を取得
-    const newsList = IpaScraper.fetchNews(targetUrl, CONFIG.TARGET_CATEGORY);
-    console.log(`取得件数: ${newsList.length} 件`);
+  const sites = CONFIG.TARGET_SITES;
+  const collectedErrors = [];
+  const unpostedItems = [];
 
-    // 2. 未連携（Slack未投稿）の情報を抽出
-    const unpostedNews = newsList.filter(item => !StateService.isAlreadyPosted(item.url));
-    console.log(`未連携件数: ${unpostedNews.length} 件`);
+  // 1. すべての情報取得元に対して処理を行う
+  for (const site of sites) {
+    console.log(`[取得処理中] ${site.name} (${site.url})`);
 
-    if (unpostedNews.length === 0) {
-      console.log('未連携の新着情報はありませんでした。');
-      return;
+    try {
+      const items = Scrapers.scrapeSite(site);
+      console.log(`-> 取得成功: ${items.length} 件`);
+
+      // 未連携情報の抽出
+      for (const item of items) {
+        if (!StateService.isAlreadyPosted(item)) {
+          unpostedItems.push(item);
+        }
+      }
+    } catch (err) {
+      console.error(`-> エラー発生 [${site.name}]:`, err);
+      // エラー情報（ステータス異常またはスクレイピングエラー）を集約リストに蓄積
+      collectedErrors.push({
+        siteName: site.name,
+        url: site.url,
+        errorType: err.errorType || 'SYSTEM_ERROR',
+        message: err.message || String(err)
+      });
     }
 
-    // 3. 時系列順（古い順）に投稿するため、リストを反転
-    const itemsToPost = unpostedNews.slice().reverse();
-    const postedUrls = [];
+    // サイト間の負荷軽減のため少し待機（0.5秒）
+    Utilities.sleep(500);
+  }
+
+  // 2. 未連携の新着情報をSlack（#all-資格情報変更通知）へ投稿
+  console.log(`未連携の新着情報件数: ${unpostedItems.length} 件`);
+  if (unpostedItems.length > 0) {
+    const postedItems = [];
+    // 古い順に流れるよう反転して投稿
+    const itemsToPost = unpostedItems.slice().reverse();
 
     for (const item of itemsToPost) {
-      console.log(`Slackへ投稿中: [${item.date}] ${item.title}`);
-      SlackService.postNews(item);
-      postedUrls.push(item.url);
-      
-      // 連続投稿時のAPIレートリミットを考慮してわずかに待機（0.5秒）
-      Utilities.sleep(500);
+      try {
+        console.log(`Slackへ投稿中: [${item.siteName}] ${item.title}`);
+        SlackService.postNews(item);
+        postedItems.push(item);
+        Utilities.sleep(500); // レートリミット対策
+      } catch (postErr) {
+        console.error(`投稿失敗: ${item.title}`, postErr);
+        collectedErrors.push({
+          siteName: item.siteName,
+          url: item.url,
+          errorType: 'SLACK_POST_ERROR',
+          message: `新着情報のSlack投稿に失敗: ${postErr.message}`
+        });
+      }
     }
 
-    // 4. 投稿済みURLを記録
-    StateService.markMultipleAsPosted(postedUrls);
-    console.log(`[完了] ${postedUrls.length} 件の新着情報をSlackへ投稿し、連携済みに更新しました。`);
-
-  } catch (error) {
-    console.error('新着情報更新確認処理中にエラーが発生しました:', error);
-    // 5. エラー情報をSlack（CWC_堀場義弘宛てDM等のWebhook）へ通知
-    SlackService.postError(targetUrl, error);
+    // 投稿成功したアイテムを連携済みとして一括記録
+    StateService.markMultipleAsPosted(postedItems);
+    console.log(`[投稿完了] ${postedItems.length} 件の情報をSlackへ投稿し、連携済みに更新しました。`);
   }
+
+  // 3. 発生したエラーがあれば、まとめてエラー情報投稿先へ通知
+  if (collectedErrors.length > 0) {
+    console.warn(`エラーが ${collectedErrors.length} 件発生したため、エラー情報投稿先へ集約通知を送信します。`);
+    SlackService.postAggregatedErrors(collectedErrors);
+  } else {
+    console.log('すべてのサイトでエラーなく処理が完了しました。');
+  }
+
+  console.log('[終了] 全資格情報サイトの更新確認処理が完了しました。');
+}
+
+/**
+ * 過去互換用エントリポイント
+ */
+function checkIpaNewsUpdates() {
+  executeDailyCredentialCheck();
 }
 
 /**
  * 平日朝9:00〜10:00に自動実行するトリガーを登録
- * （Google Apps Scriptの時間主導型トリガー）
+ * （土日は除外する平日実行フィルタ付きトリガー設定）
  */
-function setDailyTrigger() {
-  // 既存の同名トリガーを削除して重複を防ぐ
+function setDailyWeekdayTrigger() {
   deleteTriggers();
 
-  ScriptApp.newTrigger('checkIpaNewsUpdates')
+  // 毎日午前9時台に実行するトリガーを作成
+  // （関数内で平日判定を行うことで平日のみ実行を担保）
+  ScriptApp.newTrigger('triggerHandler')
     .timeBased()
     .everyDays(1)
     .atHour(9)
     .create();
 
-  console.log('毎朝9時台に実行するトリガーを設定しました。');
+  console.log('毎朝9時台に実行する定期トリガーを設定しました（平日のみ実行されます）。');
 }
 
 /**
- * checkIpaNewsUpdates の既存トリガーをすべて削除
+ * トリガーから起動されるハンドラー関数
+ * 平日（月曜日〜金曜日）のみメイン処理を実行します。
+ */
+function triggerHandler() {
+  const dayOfWeek = new Date().getDay(); // 0: 日曜日, 6: 土曜日
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    console.log('本日は土日のため、処理をスキップします。');
+    return;
+  }
+
+  executeDailyCredentialCheck();
+}
+
+/**
+ * 登録済みトリガーをすべて削除
  */
 function deleteTriggers() {
   const triggers = ScriptApp.getProjectTriggers();
   for (const trigger of triggers) {
-    if (trigger.getHandlerFunction() === 'checkIpaNewsUpdates') {
+    const fn = trigger.getHandlerFunction();
+    if (fn === 'triggerHandler' || fn === 'checkIpaNewsUpdates' || fn === 'executeDailyCredentialCheck') {
       ScriptApp.deleteTrigger(trigger);
     }
   }
-  console.log('既存のトリガーを削除しました。');
+  console.log('既存の定期実行トリガーを削除しました。');
 }
 
 /**
- * 手動テスト用：スクリプトプロパティの確認
+ * 手動設定確認用関数
  */
 function checkConfiguration() {
   const notifyUrl = CONFIG.getNotifyWebhookUrl();
   const errorUrl = CONFIG.getErrorWebhookUrl();
 
   console.log('--- 設定確認 ---');
-  console.log('通知用Webhook URL (SLACK_WEBHOOK_URL_NOTIFY):', notifyUrl ? '設定済み' : '未設定 ⚠️');
-  console.log('エラー通知用Webhook URL (SLACK_WEBHOOK_URL_ERROR):', errorUrl ? '設定済み' : '未設定 ⚠️');
-  console.log('IPA新着情報URL:', CONFIG.IPA_NEWS_URL);
-  console.log('対象カテゴリ:', CONFIG.TARGET_CATEGORY);
-  console.log('過去に連携済みのURL数:', StateService.getPostedUrls().length);
+  console.log('通知用Webhook (SLACK_WEBHOOK_URL_NOTIFY):', notifyUrl ? '設定済み' : '未設定 ⚠️');
+  console.log('エラー通知用Webhook (SLACK_WEBHOOK_URL_ERROR):', errorUrl ? '設定済み' : '未設定 ⚠️');
+  console.log('対象サイト数:', CONFIG.TARGET_SITES.length);
+  CONFIG.TARGET_SITES.forEach((s, i) => {
+    console.log(`  [${i + 1}] ${s.name}: ${s.url}`);
+  });
+  console.log('連携済みキー保持数:', StateService.getPostedKeys().length);
 }

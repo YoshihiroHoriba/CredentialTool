@@ -1,74 +1,83 @@
-// Node.js環境でのIpaScraperパース検証スクリプト
+// Node.js環境でのScrapersパース検証スクリプト
 const fs = require('fs');
 const path = require('path');
 
-// IpaScraper.js の内容をロード
-const scraperCode = fs.readFileSync(path.join(__dirname, '../../src/gas/IpaScraper.js'), 'utf8');
-
-// CONFIGのモック
-const CONFIG = {
-  IPA_NEWS_URL: 'https://www.ipa.go.jp/news/index.html',
-  TARGET_CATEGORY: '試験情報'
-};
-
-// 評価用スコープ
-const context = {
-  CONFIG,
-  UrlFetchApp: {},
-  console
-};
+const scrapersCode = fs.readFileSync(path.join(__dirname, '../../src/gas/Scrapers.js'), 'utf8');
 
 eval(`
-${scraperCode}
-global.IpaScraper = IpaScraper;
+${scrapersCode}
+global.Scrapers = Scrapers;
 `);
 
-const mockHtml = `
-<div class="news-list__wrap">
-  <ul class="news-list">
-    <li class="news-list__item" data-search="exam">
-      <a href="https://www3.jitec.ipa.go.jp/JitesCbt/html/openinfo/pass.html" class="news-list__inner icon--out" target="_blank">
-        <ul class="news-list__data-box">
-          <li class="news-list__label label --info-cat --exam">試験情報</li>
-          <li class="news-list__date">2026年11月20日</li>
-        </ul>
-        <p class="news-list__ttl">ITパスポート試験（令和8年10月実施）の合格者受験番号一覧を掲載しました</p>
-      </a>
-    </li>
-    <li class="news-list__item" data-search="exam">
-      <a href="/shiken/mousikomi/cbt_sg_fe.html#cbt04" class="news-list__inner ">
-        <ul class="news-list__data-box">
-          <li class="news-list__label label --info-cat --exam">試験情報</li>
-          <li class="news-list__date">2026年11月20日</li>
-        </ul>
-        <p class="news-list__ttl">情報セキュリティマネジメント試験・基本情報技術者試験（令和8年10月実施）の合格者受験番号一覧を掲載しました</p>
-      </a>
-    </li>
-    <li class="news-list__item" data-search="digital">
-      <a href="/digital/ai/test.html" class="news-list__inner ">
-        <ul class="news-list__data-box">
-          <li class="news-list__label label --info-cat --digital">デジタル</li>
-          <li class="news-list__date">2026年11月17日</li>
-        </ul>
-        <p class="news-list__ttl">AI関連のガイドラインを公開しました</p>
-      </a>
-    </li>
-  </ul>
-</div>
+console.log('--- 1. IPA Parser Test ---');
+const ipaHtml = `
+<ul class="news-list">
+  <li class="news-list__item" data-search="exam">
+    <a href="/shiken/fe.html" class="news-list__inner">
+      <ul class="news-list__data-box">
+        <li class="news-list__label">試験情報</li>
+        <li class="news-list__date">2026年11月20日</li>
+      </ul>
+      <p class="news-list__ttl">基本情報技術者試験の案内</p>
+    </a>
+  </li>
+</ul>
 `;
+const ipaItems = Scrapers.parseIpa(ipaHtml, { category: '試験情報', name: 'IPA' });
+console.log('IPA Items:', ipaItems.length);
+if (ipaItems.length !== 1 || ipaItems[0].url !== 'https://www.ipa.go.jp/shiken/fe.html') {
+  throw new Error('IPA parser failed');
+}
 
-const results = global.IpaScraper.parseHtml(mockHtml, '試験情報');
-console.log('Filtered items count:', results.length);
-if (results.length !== 2) {
-  console.error('Test Failed! Expected 2 items');
-  process.exit(1);
+console.log('--- 2. AWS Blog Parser Test ---');
+const awsHtml = `
+<article class="blog-post">
+  <a href="/jp/blogs/news/aws-cert-update/" property="url">Link</a>
+  <span property="name headline">AWS 認定資格に関するアップデート</span>
+  <time datetime="2026-09-10">10 9月 2026</time>
+</article>
+`;
+const awsItems = Scrapers.parseAwsBlog(awsHtml, { name: 'AWS Blog' });
+console.log('AWS Blog Items:', awsItems.length);
+if (awsItems.length !== 1 || awsItems[0].title !== 'AWS 認定資格に関するアップデート' || awsItems[0].url !== 'https://aws.amazon.com/jp/blogs/news/aws-cert-update/') {
+  throw new Error('AWS Blog parser failed');
 }
-if (results[0].title !== 'ITパスポート試験（令和8年10月実施）の合格者受験番号一覧を掲載しました') {
-  console.error('Test Failed! Title mismatch');
-  process.exit(1);
+
+console.log('--- 3. AWS Coming Soon Parser Test ---');
+const awsSoonHtml = `
+<h2>試験の更新: AWS Certified CloudOps Engineer - Associate</h2>
+<p>2025 年 9 月 9 日: 試験の登録が開始されます。</p>
+`;
+const awsSoonItems = Scrapers.parseAwsComingSoon(awsSoonHtml, { name: 'AWS Coming Soon', url: 'https://aws.amazon.com/jp/certification/coming-soon/' });
+console.log('AWS Coming Soon Items:', awsSoonItems.length);
+if (awsSoonItems.length !== 1 || !awsSoonItems[0].title.includes('CloudOps') || awsSoonItems[0].date !== '2025 年 9 月 9 日') {
+  throw new Error('AWS Coming Soon parser failed');
 }
-if (results[1].url !== 'https://www.ipa.go.jp/shiken/mousikomi/cbt_sg_fe.html#cbt04') {
-  console.error('Test Failed! Relative URL conversion failed');
-  process.exit(1);
+
+console.log('--- 4. Microsoft Skills Hub Parser Test ---');
+const msHtml = `
+<script id="__NEXT_DATA__" type="application/json">
+{
+  "props": {
+    "pageProps": {
+      "apolloState": {
+        "BlogTopicMessage:4494135": {
+          "__typename": "BlogTopicMessage",
+          "subject": "Heard it at Ignite? Let’s get into it.",
+          "uid": 4494135,
+          "postTime": "2026-11-17T12:00:03Z"
+        }
+      }
+    }
+  }
 }
-console.log('All local tests passed successfully!');
+</script>
+<a href="/blog/skills-hub-blog/heard-it-at-ignite/4494135">Link</a>
+`;
+const msItems = Scrapers.parseMsSkillsHub(msHtml, { name: 'MS Skills Hub' });
+console.log('MS Skills Hub Items:', msItems.length);
+if (msItems.length !== 1 || msItems[0].title !== 'Heard it at Ignite? Let’s get into it.') {
+  throw new Error('MS Skills Hub parser failed');
+}
+
+console.log('All Scraper tests passed successfully!');
