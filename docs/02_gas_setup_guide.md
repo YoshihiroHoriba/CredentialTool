@@ -7,8 +7,8 @@
 ## 1. 作成・更新ファイル一覧
 
 - [src/gas/Config.js](file:///c:/repos/CredentialTool/src/gas/Config.js): 5サイトの取得元情報、`from` 文言、タイトルフィルタ条件、Webhook URL等の管理
-- [src/gas/Scrapers.js](file:///c:/repos/CredentialTool/src/gas/Scrapers.js): 各サイトのスクレイピング・日付/タイトル/説明/URL抽出、タイトルフィルタリング
-- [src/gas/SlackService.js](file:///c:/repos/CredentialTool/src/gas/SlackService.js): Slackへの通知（新フォーマット：`from`、`*タイトル*`、`> 日付`、`説明`、`詳細は[こちら](URL)`、集約エラー報告）
+- [src/gas/Scrapers.js](file:///c:/repos/CredentialTool/src/gas/Scrapers.js): 各サイトのスクレイピング・日付/タイトル/説明/URL抽出、日付書式変換（AWS: D M月 YYYY -> YYYY年M月D日）、タイトルフィルタリング
+- [src/gas/SlackService.js](file:///c:/repos/CredentialTool/src/gas/SlackService.js): Slackへの通知（新引用フォーマット：`from`、`> *タイトル*`、`> 日付`、`> 説明`、`> 詳細は[こちら](URL)`、集約エラー報告）
 - [src/gas/StateService.js](file:///c:/repos/CredentialTool/src/gas/StateService.js): 連携済み情報の状態保持・重複投稿防止処理
 - [src/gas/Main.js](file:///c:/repos/CredentialTool/src/gas/Main.js): 全サイト巡回メイン処理 `executeDailyCredentialCheck` および平日定期実行トリガー
 - [src/gas/IpaScraper.js](file:///c:/repos/CredentialTool/src/gas/IpaScraper.js): 後方互換ラッパー
@@ -19,12 +19,12 @@
 
 ## 2. 情報取得元サイトと抽出・フィルタ条件（計5サイト）
 
-| # | サイト名 | URL | from文言 | 投稿対象フィルタ |
+| # | サイト名 | URL | from文言 | 投稿対象フィルタ / 日付書式 |
 | :--- | :--- | :--- | :--- | :--- |
 | 1 | IPA 独立行政法人情報処理推進機構 | `https://www.ipa.go.jp/news/index.html?=exam` | `IPA(情報処理推進機構)の最新情報より` | `試験情報` カテゴリ |
-| 2 | AWS Training and Certification ブログ（日本語） | `https://aws.amazon.com/jp/blogs/news/category/aws-training-and-certification/` | `AWS Training and Certification ブログ（日本語）より` | タイトルに「AWS 認定」または「AWS Certified」を含む |
+| 2 | AWS Training and Certification ブログ（日本語） | `https://aws.amazon.com/jp/blogs/news/category/aws-training-and-certification/` | `AWS Training and Certification ブログ（日本語）より` | タイトルに「AWS 認定」または「AWS Certified」を含む<br>日付書式を「D M月 YYYY」から「YYYY年M月D日」に変換 |
 | 3 | 近日公開の AWS 認定（AWS Certification Coming Soon） | `https://aws.amazon.com/jp/certification/coming-soon/` | `近日公開の AWS 認定より` | 試験更新・近日公開の見出し |
-| 4 | Google Cloud 公式ブログ（トレーニングと認定） | `https://cloud.google.com/blog/ja/topics/training-certifications` | `Google Cloud 公式ブログ（トレーニングと認定）より` | タイトルに「認定資格」を含む |
+| 4 | Google Cloud 公式ブログ（トレーニングと認定） | `https://cloud.google.com/blog/ja/topics/training-certifications` | `Google Cloud 公式ブログ（トレーニングと認定）より` | フィルタなし（全件対象） |
 | 5 | The Skills Hub Blog（Microsoft Community Hub） | `https://techcommunity.microsoft.com/category/skills-hub/blog/skills-hub-blog` | `The Skills Hub Blog（Microsoft Community Hub）より` | タイトルに「Microsoft Certified」を含む |
 
 ---
@@ -58,22 +58,22 @@
 ## 5. 投稿フォーマットと動作確認
 
 ### 通常通知の投稿スタイル
-docs/01_overview.md の指定通り、以下のスタイルで投稿されます：
+docs/01_overview.md の指定通り、以下の引用スタイルで投稿されます：
 ```text
 {from}
-*{タイトル}*
+> *{タイトル}*
 > {日付}
-{説明}
-詳細は<{URL}|こちら>
+> {説明}
+> 詳細は<{URL}|こちら>
 ```
 
-※説明が存在しない（取得できない）場合は説明行が省略され、`詳細は<URL|こちら>` に続きます。
+※説明が存在しない（取得できない）場合は `> {説明}` 行が省略されます。
 
 ### 動作確認手順
 1. **設定確認:**
    - GASエディタで `checkConfiguration` を実行し、プロパティやサイト一覧が読み込まれていることを確認します。
 2. **スクレイピング & フィルタテスト:**
-   - `TestScrapers.gs` の `testScrapeAllSites` を実行し、各サイトの `from`、タイトル、日付、説明、URL、およびフィルタ適用結果をログで確認します（Slackへの投稿は行われません）。
+   - `TestScrapers.gs` の `testScrapeAllSites` を実行し、各サイトの `from`、タイトル、日付（AWSブログの `YYYY年M月D日` 表記など）、説明、URL、およびフィルタ適用結果をログで確認します（Slackへの投稿は行われません）。
 3. **エラー集約通知テスト:**
    - `TestScrapers.gs` の `testAggregatedErrorNotification` を実行し、エラー集約通知が正しく届くかテストできます。
 4. **本番実行テスト:**

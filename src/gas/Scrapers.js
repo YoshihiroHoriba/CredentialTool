@@ -63,7 +63,7 @@ const Scrapers = {
           throw new Error(`未対応のサイトIDです: ${site.id}`);
       }
 
-      // 3. タイトルフィルタリングの適用
+      // 3. タイトルフィルタリングの適用（定義されている場合のみ）
       if (typeof site.titleFilter === 'function') {
         items = items.filter(item => site.titleFilter(item.title));
       }
@@ -168,13 +168,16 @@ const Scrapers = {
         }
       }
 
-      // 日付
-      let date = '';
+      // 日付の抽出と書式変換（「D M月 YYYY」から「YYYY年M月D日」へ変更）
+      let rawDate = '';
+      let datetimeAttr = '';
       const timeMatch = /<time[^>]*datetime=["']([^"']+)["'][^>]*>([\s\S]*?)<\/time>/i.exec(block) ||
                         /<time[^>]*>([\s\S]*?)<\/time>/i.exec(block);
       if (timeMatch) {
-        date = this._cleanText(timeMatch[2] || timeMatch[1]);
+        datetimeAttr = timeMatch[1] || '';
+        rawDate = this._cleanText(timeMatch[2] || timeMatch[1]);
       }
+      const formattedDate = this._formatAwsDate(rawDate, datetimeAttr);
 
       // 説明（本文抜粋）
       let description = '';
@@ -187,7 +190,7 @@ const Scrapers = {
 
       if (title && link) {
         items.push({
-          date: date,
+          date: formattedDate,
           title: title,
           description: description,
           url: link,
@@ -197,6 +200,34 @@ const Scrapers = {
     }
 
     return items;
+  },
+
+  /**
+   * AWSブログの日付書式を「D M月 YYYY」から「YYYY年M月D日」に変換
+   * 例: "10 9月 2026" -> "2026年9月10日"
+   * @private
+   */
+  _formatAwsDate(rawDate, datetimeAttr) {
+    if (!rawDate && !datetimeAttr) return '';
+
+    // 1. テキスト「D M月 YYYY」形式のパース（例: "10 9月 2026"）
+    const match = /(\d{1,2})\s*(\d{1,2})月\s*(\d{4})/.exec(rawDate);
+    if (match) {
+      const day = match[1];
+      const month = match[2];
+      const year = match[3];
+      return `${year}年${month}月${day}日`;
+    }
+
+    // 2. datetime属性（例: "2026-09-10T08:48:07+09:00"）からの変換フォールバック
+    if (datetimeAttr) {
+      const dtMatch = /(\d{4})-(\d{2})-(\d{2})/.exec(datetimeAttr);
+      if (dtMatch) {
+        return `${parseInt(dtMatch[1], 10)}年${parseInt(dtMatch[2], 10)}月${parseInt(dtMatch[3], 10)}日`;
+      }
+    }
+
+    return rawDate;
   },
 
   /**
@@ -218,7 +249,6 @@ const Scrapers = {
           date = dateMatch[1];
         }
 
-        // 説明（本文から段落またはテキストを抽出）
         let description = '';
         const pMatch = /<p[^>]*>([\s\S]*?)<\/p>/i.exec(body);
         if (pMatch) {
@@ -264,7 +294,6 @@ const Scrapers = {
         const idx = urlMatch.index;
         const contextStr = code.slice(Math.max(0, idx - 400), Math.min(code.length, idx + 400));
 
-        // タイトル抽出
         let title = '';
         const titleMatch = /"([^"\\]*(?:認定|トレーニング|コース|資格|Google|AI|学習)[^"\\]*)"/i.exec(contextStr);
         if (titleMatch) {
@@ -275,7 +304,6 @@ const Scrapers = {
           title = slug;
         }
 
-        // 日付抽出
         let date = '';
         const timeMatch = /\[(\d{10})\]/.exec(contextStr);
         if (timeMatch) {
@@ -284,7 +312,6 @@ const Scrapers = {
           date = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
         }
 
-        // 説明（コンテキストからサブタイトルや説明文を抽出）
         let description = '';
         const descMatch = /"([^"\\]{20,150})"/g;
         let dMatch;
@@ -332,7 +359,6 @@ const Scrapers = {
               date = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
             }
 
-            // 説明（teaserまたはbody抜粋）
             let description = '';
             for (const prop in obj) {
               if (prop.startsWith('teaser') || prop.startsWith('introduction') || prop.startsWith('body')) {
@@ -343,7 +369,6 @@ const Scrapers = {
               }
             }
 
-            // URLの生成
             const idNum = obj.uid || (obj.id ? obj.id.replace('message:', '') : '');
             let link = `${baseHost}/category/skills-hub/blog/skills-hub-blog`;
             if (idNum) {
@@ -371,7 +396,6 @@ const Scrapers = {
       }
     }
 
-    // HTMLリンク直接パースへのフォールバック
     const linkRegex = /<a[^>]+href=["'](\/blog\/skills-hub-blog\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
     let match;
     const seenLinks = new Set();

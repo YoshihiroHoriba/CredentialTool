@@ -33,9 +33,8 @@ const TARGET_SITES = [
     id: 'gcp_blog',
     name: 'Google Cloud 公式ブログ（トレーニングと認定）',
     from: 'Google Cloud 公式ブログ（トレーニングと認定）より',
-    url: 'https://cloud.google.com/blog/ja/topics/training-certifications',
-    // タイトルに「認定資格」の表記があるもののみ
-    titleFilter: (title) => title.includes('認定資格')
+    url: 'https://cloud.google.com/blog/ja/topics/training-certifications'
+    // docs/01_overview.md の修正に伴いタイトルフィルタは設定なし（全件対象）
   },
   {
     id: 'ms_skills_hub',

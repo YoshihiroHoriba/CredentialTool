@@ -7,7 +7,7 @@ const SlackService = {
   /**
    * 新着情報をSlack（#all-資格情報変更通知）に投稿
    * docs/01_overview.md の最新要件:
-   * 「投稿内容は、from、*タイトル*、> 日付、説明、詳細は[こちら](URL) のスタイルで投稿する」
+   * 「投稿内容は、from、> *タイトル*、> 日付、> 説明、> 詳細は[こちら](URL) のスタイルで投稿する」
    * 
    * @param {Object} newsItem 新着情報オブジェクト { from, date, title, description, url, siteName }
    */
@@ -22,15 +22,27 @@ const SlackService = {
     
     // 指定のフォーマット:
     // from
-    // *タイトル*
+    // > *タイトル*
     // > 日付
-    // 説明（存在する場合）
-    // 詳細は<URL|こちら>
-    let textMessage = `${fromText}\n*${newsItem.title}*\n> ${formattedDate}`;
+    // > 説明（存在する場合）
+    // > 詳細は<URL|こちら>
+    const lines = [
+      fromText,
+      `> *${newsItem.title}*`,
+      `> ${formattedDate}`
+    ];
+
     if (newsItem.description) {
-      textMessage += `\n${newsItem.description}`;
+      // 複数行の説明がある場合、各行に "> " を付与して引用スタイルを維持
+      const descLines = newsItem.description.split('\n').map(l => l.trim()).filter(l => l !== '');
+      for (const dLine of descLines) {
+        lines.push(`> ${dLine}`);
+      }
     }
-    textMessage += `\n詳細は<${newsItem.url}|こちら>`;
+
+    lines.push(`> 詳細は<${newsItem.url}|こちら>`);
+
+    const textMessage = lines.join('\n');
 
     const payload = {
       text: textMessage,

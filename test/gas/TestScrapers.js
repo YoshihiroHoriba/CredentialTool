@@ -24,8 +24,16 @@ function testScrapeAllSites() {
         console.log(`     説明: ${it.description || '(なし)'}`);
         console.log(`     URL: ${it.url}`);
         console.log(`     --- Slack投稿スタイル ---`);
-        const formatted = `${it.from}\n*${it.title}*\n> ${it.date || '日付不明'}${it.description ? '\n' + it.description : ''}\n詳細は<${it.url}|こちら>`;
-        console.log(formatted);
+        const lines = [
+          it.from,
+          `> *${it.title}*`,
+          `> ${it.date || '日付不明'}`
+        ];
+        if (it.description) {
+          lines.push(`> ${it.description}`);
+        }
+        lines.push(`> 詳細は<${it.url}|こちら>`);
+        console.log(lines.join('\n'));
       });
     } catch (err) {
       console.error(`テスト失敗: ${site.name}`, err);

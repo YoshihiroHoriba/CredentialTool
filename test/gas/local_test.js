@@ -35,18 +35,18 @@ if (ipaItems.length !== 1 || ipaItems[0].from !== 'IPA(情報処理推進機構)
   throw new Error('IPA parser failed');
 }
 
-console.log('--- 2. AWS Blog Parser & Title Filter Test ---');
+console.log('--- 2. AWS Blog Parser, Date Format & Title Filter Test ---');
 const awsHtml = `
 <article class="blog-post">
   <a href="/jp/blogs/news/aws-cert-update/" property="url">Link</a>
   <span property="name headline">AWS 認定資格に関するアップデート</span>
-  <time datetime="2026-09-10">10 9月 2026</time>
+  <time datetime="2026-09-10T08:48:07+09:00">10 9月 2026</time>
   <p>AWS が認定試験を更新します。</p>
 </article>
 <article class="blog-post">
   <a href="/jp/blogs/news/general-post/" property="url">Link</a>
   <span property="name headline">一般的なクラウドトレーニング記事</span>
-  <time datetime="2026-09-08">8 9月 2026</time>
+  <time datetime="2026-09-08T08:48:07+09:00">8 9月 2026</time>
   <p>一般的な記事です。</p>
 </article>
 `;
@@ -62,8 +62,9 @@ if (awsSite.titleFilter) {
 }
 awsItems = awsItems.map(it => ({ ...it, from: awsSite.from }));
 console.log('AWS Blog Items after filter:', awsItems.length);
-if (awsItems.length !== 1 || awsItems[0].from !== 'AWS Training and Certification ブログ（日本語）より' || !awsItems[0].description) {
-  throw new Error('AWS Blog parser or filter failed');
+console.log('AWS Blog Date format:', awsItems[0].date);
+if (awsItems.length !== 1 || awsItems[0].date !== '2026年9月10日' || !awsItems[0].description) {
+  throw new Error(`AWS Blog parser, date formatting, or filter failed. Expected '2026年9月10日', got '${awsItems[0].date}'`);
 }
 
 console.log('--- 3. AWS Coming Soon Parser Test ---');
@@ -83,20 +84,20 @@ if (awsSoonItems.length !== 1 || awsSoonItems[0].from !== '近日公開の AWS �
   throw new Error('AWS Coming Soon parser failed');
 }
 
-console.log('--- 4. Google Cloud Blog Filter Test ---');
+console.log('--- 4. Google Cloud Blog Test (No Title Filter) ---');
 const gcpSite = {
   id: 'gcp_blog',
   name: 'Google Cloud 公式ブログ（トレーニングと認定）',
-  from: 'Google Cloud 公式ブログ（トレーニングと認定）より',
-  titleFilter: (title) => title.includes('認定資格')
+  from: 'Google Cloud 公式ブログ（トレーニングと認定）より'
+  // titleFilter なし
 };
 const mockGcpItems = [
   { title: '新しい Google Cloud Agentic Architect 認定資格のご紹介', url: 'https://example.com/1' },
   { title: 'ホリデーシーズンの無償AIトレーニング', url: 'https://example.com/2' }
-].filter(it => gcpSite.titleFilter(it.title)).map(it => ({ ...it, from: gcpSite.from }));
-console.log('GCP filtered items:', mockGcpItems.length);
-if (mockGcpItems.length !== 1 || mockGcpItems[0].title !== '新しい Google Cloud Agentic Architect 認定資格のご紹介') {
-  throw new Error('GCP filter failed');
+].map(it => ({ ...it, from: gcpSite.from }));
+console.log('GCP items (all kept):', mockGcpItems.length);
+if (mockGcpItems.length !== 2) {
+  throw new Error('GCP should keep all items');
 }
 
 console.log('--- 5. Microsoft Skills Hub Parser & Filter Test ---');
@@ -143,18 +144,27 @@ if (msItems.length !== 1 || msItems[0].from !== 'The Skills Hub Blog（Microsoft
 }
 
 console.log('\n--- 6. Slack Message Format Preview Test ---');
+// 投稿内容は、from、> *タイトル*、> 日付、> 説明、> 詳細は[こちら](URL) のスタイル
 const sampleItem = awsItems[0];
-const sampleFrom = sampleItem.from;
-const sampleTitle = sampleItem.title;
-const sampleDate = sampleItem.date;
-const sampleDesc = sampleItem.description;
-const sampleUrl = sampleItem.url;
-
-let previewText = `${sampleFrom}\n*${sampleTitle}*\n> ${sampleDate}`;
-if (sampleDesc) {
-  previewText += `\n${sampleDesc}`;
+const lines = [
+  sampleItem.from,
+  `> *${sampleItem.title}*`,
+  `> ${sampleItem.date}`
+];
+if (sampleItem.description) {
+  lines.push(`> ${sampleItem.description}`);
 }
-previewText += `\n詳細は<${sampleUrl}|こちら>`;
+lines.push(`> 詳細は<${sampleItem.url}|こちら>`);
 
+const previewText = lines.join('\n');
 console.log(previewText);
-console.log('\nAll Scraper and Filter tests passed successfully!');
+
+// 検証
+if (!previewText.includes('> *AWS 認定資格に関するアップデート*') ||
+    !previewText.includes('> 2026年9月10日') ||
+    !previewText.includes('> AWS が認定試験を更新します。') ||
+    !previewText.includes('> 詳細は<https://aws.amazon.com/jp/blogs/news/aws-cert-update/|こちら>')) {
+  throw new Error('Slack message format verification failed');
+}
+
+console.log('\nAll Scraper, Date format, Filter, and Slack format tests passed successfully!');
