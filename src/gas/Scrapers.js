@@ -28,7 +28,7 @@ const Scrapers = {
   /**
    * サイト設定に応じたスクレイピングを実行
    * @param {Object} site サイト設定
-   * @return {Array<Object>} ニュース一覧 [{ date, title, url, siteName }]
+   * @return {Array<Object>} ニュース一覧 [{ from, date, title, description, url, siteName }]
    */
   scrapeSite(site) {
     const res = this.fetchUrl(site.url);
@@ -41,21 +41,39 @@ const Scrapers = {
     }
 
     try {
+      let items = [];
       // 2. サイト種別に応じたパース処理
       switch (site.id) {
         case 'ipa':
-          return this.parseIpa(res.content, site);
+          items = this.parseIpa(res.content, site);
+          break;
         case 'aws_blog':
-          return this.parseAwsBlog(res.content, site);
+          items = this.parseAwsBlog(res.content, site);
+          break;
         case 'aws_coming_soon':
-          return this.parseAwsComingSoon(res.content, site);
+          items = this.parseAwsComingSoon(res.content, site);
+          break;
         case 'gcp_blog':
-          return this.parseGcpBlog(res.content, site);
+          items = this.parseGcpBlog(res.content, site);
+          break;
         case 'ms_skills_hub':
-          return this.parseMsSkillsHub(res.content, site);
+          items = this.parseMsSkillsHub(res.content, site);
+          break;
         default:
           throw new Error(`未対応のサイトIDです: ${site.id}`);
       }
+
+      // 3. タイトルフィルタリングの適用
+      if (typeof site.titleFilter === 'function') {
+        items = items.filter(item => site.titleFilter(item.title));
+      }
+
+      // 4. from属性の付与
+      return items.map(item => ({
+        ...item,
+        from: site.from || `${site.name}より`
+      }));
+
     } catch (e) {
       if (!e.errorType) {
         e.errorType = 'SCRAPING_PARSE_ERROR';
@@ -104,6 +122,7 @@ const Scrapers = {
       items.push({
         date: date,
         title: title,
+        description: '', // IPA一覧には概要文がないため空文字
         url: link,
         siteName: site.name
       });
@@ -137,6 +156,7 @@ const Scrapers = {
         link = 'https://aws.amazon.com' + link;
       }
 
+      // タイトル
       let title = '';
       const nameMatch = /<span property=["']name headline["'][^>]*>([\s\S]*?)<\/span>/i.exec(block);
       if (nameMatch) {
@@ -156,10 +176,20 @@ const Scrapers = {
         date = this._cleanText(timeMatch[2] || timeMatch[1]);
       }
 
+      // 説明（本文抜粋）
+      let description = '';
+      const pMatch = /<div class=["'][^"']*blog-post-excerpt[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(block) ||
+                    /<div class=["'][^"']*lb-rtxt[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(block) ||
+                    /<p[^>]*>([\s\S]*?)<\/p>/i.exec(block);
+      if (pMatch) {
+        description = this._cleanText(pMatch[1]).slice(0, 250);
+      }
+
       if (title && link) {
         items.push({
           date: date,
           title: title,
+          description: description,
           url: link,
           siteName: site.name
         });
@@ -174,7 +204,6 @@ const Scrapers = {
    */
   parseAwsComingSoon(html, site) {
     const items = [];
-    // 「試験の更新: ...」などの見出しと主要な日程を抽出
     const sectionRegex = /<h[23][^>]*>(.*?)<\/h[23]>([\s\S]*?)(?=<h[23]|$)/gi;
     let match;
 
@@ -182,22 +211,27 @@ const Scrapers = {
       const heading = this._cleanText(match[1]);
       const body = match[2];
 
-      // 試験更新や新試験に関する見出しを対象とする
       if (heading.includes('試験') || heading.includes('認定') || heading.includes('AWS Certified')) {
-        // 主要な日程などを本文から抽出
         let date = '';
         const dateMatch = /(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日)/.exec(this._cleanText(body));
         if (dateMatch) {
           date = dateMatch[1];
         }
 
-        // URLにアンカーを付けるか、ベースURLを使用
-        const itemUrl = site.url;
+        // 説明（本文から段落またはテキストを抽出）
+        let description = '';
+        const pMatch = /<p[^>]*>([\s\S]*?)<\/p>/i.exec(body);
+        if (pMatch) {
+          description = this._cleanText(pMatch[1]).slice(0, 250);
+        } else {
+          description = this._cleanText(body).slice(0, 250);
+        }
 
         items.push({
           date: date || '近日公開',
           title: heading,
-          url: itemUrl,
+          description: description,
+          url: site.url,
           siteName: site.name
         });
       }
@@ -211,8 +245,6 @@ const Scrapers = {
    */
   parseGcpBlog(html, site) {
     const items = [];
-    // スクリプト内の記事配列から抽出
-    // 例: "https://cloud.google.com/blog/ja/topics/training-certifications/..."
     const scriptRegex = /<script[^>]*>([\s\S]*?)<\/script>/gi;
     let scriptMatch;
 
@@ -220,8 +252,6 @@ const Scrapers = {
       const code = scriptMatch[1];
       if (!code.includes('topics/training-certifications/')) continue;
 
-      // 記事URLとタイトルを含むパターン
-      // ["タイトル", ..., "https://cloud.google.com/blog/ja/topics/training-certifications/slug", [timestamp], ...]
       const urlPattern = /"(https:\/\/cloud\.google\.com\/blog\/ja\/topics\/training-certifications\/[^"]+)"/g;
       let urlMatch;
       const foundUrls = new Set();
@@ -231,23 +261,21 @@ const Scrapers = {
         if (foundUrls.has(link) || link.endsWith('/topics/training-certifications')) continue;
         foundUrls.add(link);
 
-        // 前後のテキストからタイトルやタイムスタンプを検索
         const idx = urlMatch.index;
         const contextStr = code.slice(Math.max(0, idx - 400), Math.min(code.length, idx + 400));
 
-        // タイトル抽出（日本語や文字列）
+        // タイトル抽出
         let title = '';
         const titleMatch = /"([^"\\]*(?:認定|トレーニング|コース|資格|Google|AI|学習)[^"\\]*)"/i.exec(contextStr);
         if (titleMatch) {
           title = this._cleanText(titleMatch[1]);
         }
         if (!title) {
-          // スラッグから簡易タイトル生成
           const slug = link.split('/').pop().replace(/-/g, ' ');
           title = slug;
         }
 
-        // タイムスタンプ抽出 [1795514400]
+        // 日付抽出
         let date = '';
         const timeMatch = /\[(\d{10})\]/.exec(contextStr);
         if (timeMatch) {
@@ -256,9 +284,22 @@ const Scrapers = {
           date = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
         }
 
+        // 説明（コンテキストからサブタイトルや説明文を抽出）
+        let description = '';
+        const descMatch = /"([^"\\]{20,150})"/g;
+        let dMatch;
+        while ((dMatch = descMatch.exec(contextStr)) !== null) {
+          const textCandidate = this._cleanText(dMatch[1]);
+          if (textCandidate !== title && !textCandidate.startsWith('http') && !textCandidate.includes('topics/')) {
+            description = textCandidate;
+            break;
+          }
+        }
+
         items.push({
           date: date,
           title: title,
+          description: description,
           url: link,
           siteName: site.name
         });
@@ -275,7 +316,6 @@ const Scrapers = {
     const items = [];
     const baseHost = 'https://techcommunity.microsoft.com';
 
-    // __NEXT_DATA__ が存在する場合は ApolloState から取得
     const nextDataMatch = /<script id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i.exec(html);
     if (nextDataMatch) {
       try {
@@ -292,7 +332,18 @@ const Scrapers = {
               date = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
             }
 
-            // HTML内のリンク検索でこのIDに対応するURLを取得
+            // 説明（teaserまたはbody抜粋）
+            let description = '';
+            for (const prop in obj) {
+              if (prop.startsWith('teaser') || prop.startsWith('introduction') || prop.startsWith('body')) {
+                if (typeof obj[prop] === 'string' && obj[prop].length > 10) {
+                  description = this._cleanText(obj[prop]).slice(0, 250);
+                  break;
+                }
+              }
+            }
+
+            // URLの生成
             const idNum = obj.uid || (obj.id ? obj.id.replace('message:', '') : '');
             let link = `${baseHost}/category/skills-hub/blog/skills-hub-blog`;
             if (idNum) {
@@ -305,6 +356,7 @@ const Scrapers = {
             items.push({
               date: date,
               title: title,
+              description: description,
               url: link,
               siteName: site.name
             });
@@ -315,7 +367,7 @@ const Scrapers = {
           return items;
         }
       } catch (e) {
-        console.warn('Microsoft Skills Hub: __NEXT_DATA__のパースに失敗しました。HTMLパースへフォールバックします。', e);
+        console.warn('Microsoft Skills Hub: __NEXT_DATA__のパースに失敗しました。フォールバックします。', e);
       }
     }
 
@@ -335,6 +387,7 @@ const Scrapers = {
       items.push({
         date: '',
         title: linkText,
+        description: '',
         url: fullUrl,
         siteName: site.name
       });

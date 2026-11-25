@@ -4,31 +4,35 @@
  */
 
 /**
- * 全サイトの取得テスト（Slack投稿は行わず、ログ出力のみ）
+ * 全サイトの取得・フィルタテスト（Slack投稿は行わず、ログ出力のみ）
  */
 function testScrapeAllSites() {
-  console.log('=== 全サイト スクレイピング テスト開始 ===');
+  console.log('=== 全サイト スクレイピング & フィルタ テスト開始 ===');
 
   for (const site of CONFIG.TARGET_SITES) {
-    console.log(`\n--- テスト対象: ${site.name} (${site.url}) ---`);
+    console.log(`\n--- テスト対象: ${site.name} ---`);
+    console.log(`  from文言: ${site.from}`);
+    console.log(`  URL: ${site.url}`);
     try {
       const items = Scrapers.scrapeSite(site);
-      console.log(`取得成功: ${items.length} 件`);
+      console.log(`取得成功（フィルタ適用後）: ${items.length} 件`);
 
       // 先頭2件をプレビュー
       items.slice(0, 2).forEach((it, idx) => {
-        console.log(` [${idx + 1}] 日付: ${it.date}`);
-        console.log(`     タイトル: ${it.title}`);
+        console.log(` [${idx + 1}] タイトル: ${it.title}`);
+        console.log(`     日付: ${it.date}`);
+        console.log(`     説明: ${it.description || '(なし)'}`);
         console.log(`     URL: ${it.url}`);
-        console.log(`     スタイル確認:`);
-        console.log(`     ${it.date}\n     ${it.title}\n     詳細は<${it.url}|こちら>`);
+        console.log(`     --- Slack投稿スタイル ---`);
+        const formatted = `${it.from}\n*${it.title}*\n> ${it.date || '日付不明'}${it.description ? '\n' + it.description : ''}\n詳細は<${it.url}|こちら>`;
+        console.log(formatted);
       });
     } catch (err) {
       console.error(`テスト失敗: ${site.name}`, err);
     }
   }
 
-  console.log('\n=== 全サイト スクレイピング テスト終了 ===');
+  console.log('\n=== 全サイト スクレイピング & フィルタ テスト終了 ===');
 }
 
 /**

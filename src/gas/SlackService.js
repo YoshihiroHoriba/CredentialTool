@@ -6,10 +6,10 @@
 const SlackService = {
   /**
    * 新着情報をSlack（#all-資格情報変更通知）に投稿
-   * docs/01_overview.md の要件:
-   * 「投稿内容は、日付、タイトル、詳細は[こちら](URL) のスタイルで投稿する」
+   * docs/01_overview.md の最新要件:
+   * 「投稿内容は、from、*タイトル*、> 日付、説明、詳細は[こちら](URL) のスタイルで投稿する」
    * 
-   * @param {Object} newsItem 新着情報オブジェクト { date, title, url, siteName }
+   * @param {Object} newsItem 新着情報オブジェクト { from, date, title, description, url, siteName }
    */
   postNews(newsItem) {
     const webhookUrl = CONFIG.getNotifyWebhookUrl();
@@ -17,12 +17,20 @@ const SlackService = {
       throw new Error('通知用のSlack Webhook URL（SLACK_WEBHOOK_URL_NOTIFY）が設定されていません。');
     }
 
-    // 指定のフォーマット:
-    // 日付
-    // タイトル
-    // 詳細は<URL|こちら>
+    const fromText = newsItem.from || `${newsItem.siteName}より`;
     const formattedDate = newsItem.date || '日付不明';
-    const textMessage = `${formattedDate}\n${newsItem.title}\n詳細は<${newsItem.url}|こちら>`;
+    
+    // 指定のフォーマット:
+    // from
+    // *タイトル*
+    // > 日付
+    // 説明（存在する場合）
+    // 詳細は<URL|こちら>
+    let textMessage = `${fromText}\n*${newsItem.title}*\n> ${formattedDate}`;
+    if (newsItem.description) {
+      textMessage += `\n${newsItem.description}`;
+    }
+    textMessage += `\n詳細は<${newsItem.url}|こちら>`;
 
     const payload = {
       text: textMessage,
@@ -58,7 +66,6 @@ const SlackService = {
     }
 
     let summaryText = `⚠️ 【資格情報更新確認】以下の情報取得元でエラーが発生しました（計 ${errors.length} 件）:\n\n`;
-    const fields = [];
 
     errors.forEach((err, index) => {
       const errDetail = `*${index + 1}. ${err.siteName}*\nURL: ${err.url}\nエラー種別: ${err.errorType}\n詳細: \`${err.message.slice(0, 300)}\`\n`;
