@@ -154,59 +154,41 @@ if (msItems.length !== 1 || msItems[0].from !== 'The Skills Hub Blog（Microsoft
   throw new Error('MS Skills Hub parser or filter failed');
 }
 
-console.log('--- 6. Oracle Master / OCI RSS Feed Parser Test ---');
-const mockRssXml = `
-<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
-  <channel>
-    <title>Oracle Master 公式ブログ</title>
-    <link>https://blogs.oracle.com/oraclemaster/</link>
-    <item>
-      <title><![CDATA[新試験 ORACLE MASTER Silver DBA 2026 リリース]]></title>
-      <link>https://blogs.oracle.com/oraclemaster/post/silver-dba-2026</link>
-      <pubDate>Wed, 20 Nov 2026 09:00:00 GMT</pubDate>
-      <description><![CDATA[ORACLE MASTER Silver DBA 2026 認定試験が新たに提供開始されました。]]></description>
-    </item>
-    <item>
-      <title>Oracle Cloud Infrastructure 2026 認定資格のポイント</title>
-      <link>https://blogs.oracle.com/cloud-infrastructure/post/oci-2026-cert</link>
-      <pubDate>Mon, 18 Nov 2026 00:00:00 GMT</pubDate>
-      <description>OCI 2026認定試験の最新アップデートをお届けします。</description>
-    </item>
-  </channel>
-</rss>
+console.log('--- 6. Oracle University Japan News Parser Test ---');
+const oracleHtml = `
+<h3 id="y20261124">新資格 Oracle Certified Java Programmer, Silver SE 25 リリース (2026/11/24) </h3>
+<p>2026年11月24日より、以下の認定試験の提供を開始します。</p>
+<hr>
+<h3 id="y20261102">2026年版 Oracle Cloud Applications 認定試験の提供開始のお知らせ (2026/11/2) </h3>
+<p>認定試験の日本語版の提供を開始します。</p>
 `;
-
-const oracleMasterSite = {
-  id: 'oracle_master_blog',
-  name: 'Oracle Master公式ブログ',
-  from: 'Oracle Master公式ブログより',
-  url: 'https://blogs.oracle.com/oraclemaster/rss',
-  isRss: true
+const oracleSite = {
+  id: 'oracle_news',
+  name: 'Oracle University Japan 新着ニュース',
+  from: 'Oracle University Japan 新着ニュースより',
+  url: 'https://www.oracle.com/jp/education/news/'
 };
-const oracleOciSite = {
-  id: 'oracle_oci_blog',
-  name: 'Oracle cloud-infrastructure 公式ブログ',
-  from: 'Oracle loud-infrastructure公式ブログより',
-  url: 'https://blogs.oracle.com/cloud-infrastructure/rss',
-  isRss: true
-};
-
-const masterItems = Scrapers.parseRssFeed(mockRssXml, oracleMasterSite).map(it => ({ ...it, from: oracleMasterSite.from }));
-const ociItems = Scrapers.parseRssFeed(mockRssXml, oracleOciSite).map(it => ({ ...it, from: oracleOciSite.from }));
-
-console.log('Oracle Master from:', masterItems[0].from);
-console.log('Oracle OCI from:', ociItems[0].from);
-
-if (masterItems[0].from !== 'Oracle Master公式ブログより') {
-  throw new Error('Oracle Master from mismatch');
+const oracleItems = Scrapers.parseOracleNews(oracleHtml, oracleSite).map(it => ({ ...it, from: oracleSite.from }));
+console.log('Oracle Items:', oracleItems.length);
+if (oracleItems.length !== 2) {
+  throw new Error('Oracle parser failed: expected 2 items');
 }
-if (ociItems[0].from !== 'Oracle loud-infrastructure公式ブログより') {
-  throw new Error('Oracle OCI from mismatch');
+console.log('Oracle Item 1:', oracleItems[0]);
+if (oracleItems[0].title !== '新資格 Oracle Certified Java Programmer, Silver SE 25 リリース') {
+  throw new Error(`Oracle title mismatch: got "${oracleItems[0].title}"`);
+}
+if (oracleItems[0].date !== '2026年11月24日') {
+  throw new Error(`Oracle date mismatch: got "${oracleItems[0].date}"`);
+}
+if (oracleItems[0].url !== 'https://www.oracle.com/jp/education/news/#y20261124') {
+  throw new Error(`Oracle URL mismatch: got "${oracleItems[0].url}"`);
+}
+if (!oracleItems[0].description) {
+  throw new Error('Oracle description missing');
 }
 
 console.log('\n--- 7. Slack Message Format Preview Test ---');
-const sampleItem = ociItems[0];
+const sampleItem = oracleItems[0];
 const lines = [
   sampleItem.from,
   `> *${sampleItem.title}*`,
@@ -220,4 +202,4 @@ lines.push(`> 詳細は<${sampleItem.url}|こちら>`);
 const previewText = lines.join('\n');
 console.log(previewText);
 
-console.log('\nAll 7 Sources Scraper, Date format, Filter, and Slack format tests passed successfully!');
+console.log('\nAll 6 Sites Scraper, Date format, Filter, and Slack format tests passed successfully!');

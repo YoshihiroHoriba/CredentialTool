@@ -42,31 +42,28 @@ const Scrapers = {
 
     try {
       let items = [];
-
-      // RSSフィード判定
-      if (site.isRss) {
-        items = this.parseRssFeed(res.content, site);
-      } else {
-        // 2. サイト種別に応じたパース処理
-        switch (site.id) {
-          case 'ipa':
-            items = this.parseIpa(res.content, site);
-            break;
-          case 'aws_blog':
-            items = this.parseAwsBlog(res.content, site);
-            break;
-          case 'aws_coming_soon':
-            items = this.parseAwsComingSoon(res.content, site);
-            break;
-          case 'gcp_blog':
-            items = this.parseGcpBlog(res.content, site);
-            break;
-          case 'ms_skills_hub':
-            items = this.parseMsSkillsHub(res.content, site);
-            break;
-          default:
-            throw new Error(`未対応のサイトIDです: ${site.id}`);
-        }
+      // 2. サイト種別に応じたパース処理
+      switch (site.id) {
+        case 'ipa':
+          items = this.parseIpa(res.content, site);
+          break;
+        case 'aws_blog':
+          items = this.parseAwsBlog(res.content, site);
+          break;
+        case 'aws_coming_soon':
+          items = this.parseAwsComingSoon(res.content, site);
+          break;
+        case 'gcp_blog':
+          items = this.parseGcpBlog(res.content, site);
+          break;
+        case 'ms_skills_hub':
+          items = this.parseMsSkillsHub(res.content, site);
+          break;
+        case 'oracle_news':
+          items = this.parseOracleNews(res.content, site);
+          break;
+        default:
+          throw new Error(`未対応のサイトIDです: ${site.id}`);
       }
 
       // 3. タイトルフィルタリングの適用（定義されている場合のみ）
@@ -285,6 +282,7 @@ const Scrapers = {
     const seenUrls = new Set();
 
     // 1. DOM上の記事ブロック（sample_gcp.htmlの構造）を解析
+    // 例: <a href="https://cloud.google.com/blog/ja/topics/training-certifications/..." ...>
     const linkRegex = /<a[^>]+href=["'](https:\/\/cloud\.google\.com\/blog\/ja\/topics\/training-certifications\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
     let match;
 
@@ -488,77 +486,52 @@ const Scrapers = {
   },
 
   /**
-   * 6 & 7. RSSフィードのパース（Oracle Master公式ブログ、Oracle cloud-infrastructure公式ブログなど）
-   * @param {string} xmlString RSSのXML文字列
-   * @param {Object} site サイト設定
-   * @return {Array<Object>}
+   * 6. Oracle University Japan 新着ニュースのパース
    */
-  parseRssFeed(xmlString, site) {
+  parseOracleNews(html, site) {
     const items = [];
-    // <item>...</item> を抽出
-    const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
+    // <h3 id="y..."> から 次の <h3 または 終了まで
+    const sectionRegex = /<h3\s+id=["']([^"']+)["'][^>]*>([\s\S]*?)<\/h3>([\s\S]*?)(?=<h3\s+id=["']y|$)/gi;
     let match;
 
-    while ((match = itemRegex.exec(xmlString)) !== null) {
-      const itemBlock = match[1];
+    while ((match = sectionRegex.exec(html)) !== null) {
+      const sectionId = match[1];
+      // ニュース項目は id が "y" で始まるもの（例: "y20261124"）
+      if (!sectionId.startsWith('y')) continue;
 
-      // 1. タイトル抽出
-      let title = '';
-      const titleMatch = /<title>(?:<!\[CDATA\[([\s\S]*?)\]\]>|([\s\S]*?))<\/title>/i.exec(itemBlock);
-      if (titleMatch) {
-        title = this._cleanText(titleMatch[1] || titleMatch[2]);
-      }
+      const rawHeading = this._cleanText(match[2]);
+      const body = match[3];
 
-      // 2. リンクURL抽出
-      let link = '';
-      const linkMatch = /<link>(?:<!\[CDATA\[([\s\S]*?)\]\]>|([\s\S]*?))<\/link>/i.exec(itemBlock);
-      if (linkMatch) {
-        link = (linkMatch[1] || linkMatch[2] || '').trim();
-      }
-
-      if (!title || !link) continue;
-
-      // 3. 日付抽出 (pubDate または dc:date)
+      // タイトルと日付の分離
+      // 例: "新資格 Oracle Certified Java Programmer, Silver SE 25 リリース (2026/11/24)"
+      let title = rawHeading;
       let date = '';
-      const dateMatch = /<(?:pubDate|dc:date)>(?:<!\[CDATA\[([\s\S]*?)\]\]>|([\s\S]*?))<\/(?:pubDate|dc:date)>/i.exec(itemBlock);
+      const dateMatch = /\((\d{4})\/(\d{1,2})\/(\d{1,2})\)\s*$/.exec(rawHeading);
       if (dateMatch) {
-        const rawDate = (dateMatch[1] || dateMatch[2] || '').trim();
-        date = this._formatRssDate(rawDate);
+        title = rawHeading.replace(/\s*\(\d{4}\/\d{1,2}\/\d{1,2}\)\s*$/, '').trim();
+        date = `${dateMatch[1]}年${dateMatch[2]}月${dateMatch[3]}日`;
       }
 
-      // 4. 説明文抽出 (description)
+      // 説明文（h3直後の<p>タグ等）
       let description = '';
-      const descMatch = /<description>(?:<!\[CDATA\[([\s\S]*?)\]\]>|([\s\S]*?))<\/description>/i.exec(itemBlock);
-      if (descMatch) {
-        description = this._cleanText(descMatch[1] || descMatch[2]).slice(0, 250);
+      const pMatch = /<p[^>]*>([\s\S]*?)<\/p>/i.exec(body);
+      if (pMatch) {
+        description = this._cleanText(pMatch[1]).slice(0, 250);
       }
+
+      // 詳細情報URL（アンカーリンク）
+      const itemUrl = `${site.url}#${sectionId}`;
 
       items.push({
         date: date,
         title: title,
         description: description,
-        url: link,
+        url: itemUrl,
         siteName: site.name
       });
     }
 
     return items;
-  },
-
-  /**
-   * RSSの日付文字列（RFC 822等）を「YYYY年M月D日」に変換
-   * 例: "Wed, 20 Nov 2026 12:00:00 GMT" -> "2026年11月20日"
-   * @private
-   */
-  _formatRssDate(rawDate) {
-    if (!rawDate) return '';
-    try {
-      const d = new Date(rawDate);
-      if (!isNaN(d.getTime())) {
-        return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
-      }
-    } catch (e) {}
-    return rawDate;
   },
 
   /**
