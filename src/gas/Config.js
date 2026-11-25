@@ -44,10 +44,18 @@ const TARGET_SITES = [
     titleFilter: (title) => title.includes('Microsoft Certified')
   },
   {
-    id: 'oracle_news',
-    name: 'Oracle University Japan 新着ニュース',
-    from: 'Oracle University Japan 新着ニュースより',
-    url: 'https://www.oracle.com/jp/education/news/'
+    id: 'oracle_master_blog',
+    name: 'Oracle Master公式ブログ',
+    from: 'Oracle Master公式ブログより',
+    url: 'https://blogs.oracle.com/oraclemaster/rss',
+    isRss: true
+  },
+  {
+    id: 'oracle_oci_blog',
+    name: 'Oracle cloud-infrastructure 公式ブログ',
+    from: 'Oracle loud-infrastructure公式ブログより',
+    url: 'https://blogs.oracle.com/cloud-infrastructure/rss',
+    isRss: true
   }
 ];
 

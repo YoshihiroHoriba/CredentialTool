@@ -26,9 +26,10 @@
 - [The Skills Hub Blog（Microsoft Community Hub）](https://techcommunity.microsoft.com/category/skills-hub/blog/skills-hub-blog)
   - fromを「The Skills Hub Blog（Microsoft Community Hub）より」とする
   - タイトルに「Microsoft Certified」の表記があるもののみをSlackに投稿する
-- [Oracle University Japan 新着ニュース](https://www.oracle.com/jp/education/news/)
-  - fromを「Oracle University Japan 新着ニュースより」とする
-  
+- Oracle Master公式ブログの [RSSフィード](https://blogs.oracle.com/oraclemaster/rss)
+  - fromを「Oracle Master公式ブログより」とする
+- Oracle cloud-infrastructure 公式ブログの[RSSフィード](https://blogs.oracle.com/cloud-infrastructure/rss)
+  - fromを「Oracle loud-infrastructure公式ブログより」とする
 
 ## 投稿先
 
