@@ -34,3 +34,7 @@
 ## エラー情報投稿先
 
 - CWC_堀場義弘 にDMを投稿する
+
+## GCPの確認方法について
+
+- @docs/sample_gcp.html の解析結果、1件目のタイトルは「AI にプロンプトを入力するだけではなく、AI を設計する - Professional Agentic Architect 認定資格のご紹介」、URLは「https://cloud.google.com/blog/ja/topics/training-certifications/google-cloud-agentic-architect-certification-dont-just-prompt-ai-design-it」

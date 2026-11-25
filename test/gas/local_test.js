@@ -84,23 +84,35 @@ if (awsSoonItems.length !== 1 || awsSoonItems[0].from !== '近日公開の AWS �
   throw new Error('AWS Coming Soon parser failed');
 }
 
-console.log('--- 4. Google Cloud Blog Test (No Title Filter) ---');
+console.log('--- 4. Google Cloud Blog Parser Test with sample_gcp.html ---');
+const sampleGcpPath = path.join(__dirname, '../../docs/sample_gcp.html');
+const sampleGcpHtml = fs.readFileSync(sampleGcpPath, 'utf8');
 const gcpSite = {
   id: 'gcp_blog',
   name: 'Google Cloud 公式ブログ（トレーニングと認定）',
   from: 'Google Cloud 公式ブログ（トレーニングと認定）より'
-  // titleFilter なし
 };
-const mockGcpItems = [
-  { title: '新しい Google Cloud Agentic Architect 認定資格のご紹介', url: 'https://example.com/1' },
-  { title: 'ホリデーシーズンの無償AIトレーニング', url: 'https://example.com/2' }
-].map(it => ({ ...it, from: gcpSite.from }));
-console.log('GCP items (all kept):', mockGcpItems.length);
-if (mockGcpItems.length !== 2) {
-  throw new Error('GCP should keep all items');
+const gcpItems = Scrapers.parseGcpBlog(sampleGcpHtml, gcpSite);
+console.log('GCP Items extracted from sample_gcp.html:', gcpItems.length);
+if (gcpItems.length === 0) {
+  throw new Error('GCP parser failed on sample_gcp.html');
 }
+const firstGcpItem = gcpItems[0];
+console.log('First GCP Item Title:', firstGcpItem.title);
+console.log('First GCP Item URL:', firstGcpItem.url);
 
-console.log('--- 5. Microsoft Skills Hub Parser & Filter Test ---');
+const expectedTitle = 'AI にプロンプトを入力するだけではなく、AI を設計する - Professional Agentic Architect 認定資格のご紹介';
+const expectedUrl = 'https://cloud.google.com/blog/ja/topics/training-certifications/google-cloud-agentic-architect-certification-dont-just-prompt-ai-design-it';
+
+if (firstGcpItem.title !== expectedTitle) {
+  throw new Error(`GCP 1st item title mismatch!\nExpected: "${expectedTitle}"\nGot:      "${firstGcpItem.title}"`);
+}
+if (firstGcpItem.url !== expectedUrl) {
+  throw new Error(`GCP 1st item URL mismatch!\nExpected: "${expectedUrl}"\nGot:      "${firstGcpItem.url}"`);
+}
+console.log('GCP 1st item matches overview.md specification exactly!');
+
+console.log('\n--- 5. Microsoft Skills Hub Parser & Filter Test ---');
 const msHtml = `
 <script id="__NEXT_DATA__" type="application/json">
 {
@@ -144,7 +156,6 @@ if (msItems.length !== 1 || msItems[0].from !== 'The Skills Hub Blog（Microsoft
 }
 
 console.log('\n--- 6. Slack Message Format Preview Test ---');
-// 投稿内容は、from、> *タイトル*、> 日付、> 説明、> 詳細は[こちら](URL) のスタイル
 const sampleItem = awsItems[0];
 const lines = [
   sampleItem.from,
@@ -159,7 +170,6 @@ lines.push(`> 詳細は<${sampleItem.url}|こちら>`);
 const previewText = lines.join('\n');
 console.log(previewText);
 
-// 検証
 if (!previewText.includes('> *AWS 認定資格に関するアップデート*') ||
     !previewText.includes('> 2026年9月10日') ||
     !previewText.includes('> AWS が認定試験を更新します。') ||

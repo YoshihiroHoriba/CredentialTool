@@ -272,9 +272,72 @@ const Scrapers = {
 
   /**
    * 4. Google Cloud 公式ブログ（トレーニングと認定）のパース
+   * docs/sample_gcp.html の構造（DOMアンカータグ）を優先解析
    */
   parseGcpBlog(html, site) {
     const items = [];
+    const seenUrls = new Set();
+
+    // 1. DOM上の記事ブロック（sample_gcp.htmlの構造）を解析
+    // 例: <a href="https://cloud.google.com/blog/ja/topics/training-certifications/..." ...>
+    const linkRegex = /<a[^>]+href=["'](https:\/\/cloud\.google\.com\/blog\/ja\/topics\/training-certifications\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+    let match;
+
+    while ((match = linkRegex.exec(html)) !== null) {
+      const link = match[1];
+      if (seenUrls.has(link) || link.endsWith('/topics/training-certifications')) continue;
+
+      const block = match[2];
+
+      // タイトル: <h5> タグまたは track-name 属性から抽出
+      let title = '';
+      const hMatch = /<h\d[^>]*>([\s\S]*?)<\/h\d>/i.exec(block);
+      if (hMatch) {
+        title = this._cleanText(hMatch[1]);
+      } else {
+        const trackNameMatch = /track-name=["']([^"']+)["']/i.exec(match[0]);
+        if (trackNameMatch) {
+          title = this._cleanText(trackNameMatch[1]);
+        }
+      }
+
+      if (!title) continue;
+      seenUrls.add(link);
+
+      // 説明: <p> タグ（執筆者や所要時間など）
+      let description = '';
+      const pMatch = /<p[^>]*>([\s\S]*?)<\/p>/i.exec(block);
+      if (pMatch) {
+        description = this._cleanText(pMatch[1]);
+      }
+
+      // 日付: スクリプト内のタイムスタンプ検索
+      let date = '';
+      const idx = html.indexOf(link);
+      if (idx !== -1) {
+        const contextStr = html.slice(Math.max(0, idx - 400), Math.min(html.length, idx + 400));
+        const timeMatch = /\[(\d{10})\]/.exec(contextStr);
+        if (timeMatch) {
+          const timestampSec = parseInt(timeMatch[1], 10);
+          const d = new Date(timestampSec * 1000);
+          date = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+        }
+      }
+
+      items.push({
+        date: date,
+        title: title,
+        description: description,
+        url: link,
+        siteName: site.name
+      });
+    }
+
+    if (items.length > 0) {
+      return items;
+    }
+
+    // 2. DOMから抽出できなかった場合のスクリプト解析フォールバック
     const scriptRegex = /<script[^>]*>([\s\S]*?)<\/script>/gi;
     let scriptMatch;
 
@@ -284,12 +347,11 @@ const Scrapers = {
 
       const urlPattern = /"(https:\/\/cloud\.google\.com\/blog\/ja\/topics\/training-certifications\/[^"]+)"/g;
       let urlMatch;
-      const foundUrls = new Set();
 
       while ((urlMatch = urlPattern.exec(code)) !== null) {
         const link = urlMatch[1];
-        if (foundUrls.has(link) || link.endsWith('/topics/training-certifications')) continue;
-        foundUrls.add(link);
+        if (seenUrls.has(link) || link.endsWith('/topics/training-certifications')) continue;
+        seenUrls.add(link);
 
         const idx = urlMatch.index;
         const contextStr = code.slice(Math.max(0, idx - 400), Math.min(code.length, idx + 400));
