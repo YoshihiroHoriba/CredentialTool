@@ -34,6 +34,7 @@ const TARGET_SITES = [
     name: 'Google Cloud 公式ブログ（トレーニングと認定）',
     from: 'Google Cloud 公式ブログ（トレーニングと認定）より',
     url: 'https://cloud.google.com/blog/ja/topics/training-certifications'
+    // docs/01_overview.md の修正に伴いタイトルフィルタは設定なし（全件対象）
   },
   {
     id: 'ms_skills_hub',
@@ -42,12 +43,6 @@ const TARGET_SITES = [
     url: 'https://techcommunity.microsoft.com/category/skills-hub/blog/skills-hub-blog',
     // タイトルに「Microsoft Certified」の表記があるもののみ
     titleFilter: (title) => title.includes('Microsoft Certified')
-  },
-  {
-    id: 'oracle_news',
-    name: 'Oracle University Japan 新着ニュース',
-    from: 'Oracle University Japan 新着ニュースより',
-    url: 'https://www.oracle.com/jp/education/news/'
   }
 ];
 

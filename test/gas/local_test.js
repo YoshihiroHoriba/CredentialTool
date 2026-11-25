@@ -110,8 +110,9 @@ if (firstGcpItem.title !== expectedTitle) {
 if (firstGcpItem.url !== expectedUrl) {
   throw new Error(`GCP 1st item URL mismatch!\nExpected: "${expectedUrl}"\nGot:      "${firstGcpItem.url}"`);
 }
+console.log('GCP 1st item matches overview.md specification exactly!');
 
-console.log('--- 5. Microsoft Skills Hub Parser & Filter Test ---');
+console.log('\n--- 5. Microsoft Skills Hub Parser & Filter Test ---');
 const msHtml = `
 <script id="__NEXT_DATA__" type="application/json">
 {
@@ -154,41 +155,8 @@ if (msItems.length !== 1 || msItems[0].from !== 'The Skills Hub Blog（Microsoft
   throw new Error('MS Skills Hub parser or filter failed');
 }
 
-console.log('--- 6. Oracle University Japan News Parser Test ---');
-const oracleHtml = `
-<h3 id="y20261124">新資格 Oracle Certified Java Programmer, Silver SE 25 リリース (2026/11/24) </h3>
-<p>2026年11月24日より、以下の認定試験の提供を開始します。</p>
-<hr>
-<h3 id="y20261102">2026年版 Oracle Cloud Applications 認定試験の提供開始のお知らせ (2026/11/2) </h3>
-<p>認定試験の日本語版の提供を開始します。</p>
-`;
-const oracleSite = {
-  id: 'oracle_news',
-  name: 'Oracle University Japan 新着ニュース',
-  from: 'Oracle University Japan 新着ニュースより',
-  url: 'https://www.oracle.com/jp/education/news/'
-};
-const oracleItems = Scrapers.parseOracleNews(oracleHtml, oracleSite).map(it => ({ ...it, from: oracleSite.from }));
-console.log('Oracle Items:', oracleItems.length);
-if (oracleItems.length !== 2) {
-  throw new Error('Oracle parser failed: expected 2 items');
-}
-console.log('Oracle Item 1:', oracleItems[0]);
-if (oracleItems[0].title !== '新資格 Oracle Certified Java Programmer, Silver SE 25 リリース') {
-  throw new Error(`Oracle title mismatch: got "${oracleItems[0].title}"`);
-}
-if (oracleItems[0].date !== '2026年11月24日') {
-  throw new Error(`Oracle date mismatch: got "${oracleItems[0].date}"`);
-}
-if (oracleItems[0].url !== 'https://www.oracle.com/jp/education/news/#y20261124') {
-  throw new Error(`Oracle URL mismatch: got "${oracleItems[0].url}"`);
-}
-if (!oracleItems[0].description) {
-  throw new Error('Oracle description missing');
-}
-
-console.log('\n--- 7. Slack Message Format Preview Test ---');
-const sampleItem = oracleItems[0];
+console.log('\n--- 6. Slack Message Format Preview Test ---');
+const sampleItem = awsItems[0];
 const lines = [
   sampleItem.from,
   `> *${sampleItem.title}*`,
@@ -202,4 +170,11 @@ lines.push(`> 詳細は<${sampleItem.url}|こちら>`);
 const previewText = lines.join('\n');
 console.log(previewText);
 
-console.log('\nAll 6 Sites Scraper, Date format, Filter, and Slack format tests passed successfully!');
+if (!previewText.includes('> *AWS 認定資格に関するアップデート*') ||
+    !previewText.includes('> 2026年9月10日') ||
+    !previewText.includes('> AWS が認定試験を更新します。') ||
+    !previewText.includes('> 詳細は<https://aws.amazon.com/jp/blogs/news/aws-cert-update/|こちら>')) {
+  throw new Error('Slack message format verification failed');
+}
+
+console.log('\nAll Scraper, Date format, Filter, and Slack format tests passed successfully!');
