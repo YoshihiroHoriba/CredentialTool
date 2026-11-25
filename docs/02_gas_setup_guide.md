@@ -1,23 +1,23 @@
 # GAS（Google Apps Script）セットアップ手順書
 
-本書は、[docs/01_overview.md](file:///c:/repos/CredentialTool/docs/01_overview.md) の最新仕様に基づき作成された資格情報更新確認プログラム（情報取得元のスクレイピング・タイトルフィルタリング・Slack通知・エラー集約報告）の導入手順書です。
+本書は、[docs/01_overview.md](file:///c:/repos/CredentialTool/docs/01_overview.md) の最新仕様に基づき作成された資格情報更新確認プログラム（6つの情報取得元サイトのスクレイピング・タイトルフィルタリング・Slack通知・エラー集約報告）の導入手順書です。
 
 ---
 
 ## 1. 作成・更新ファイル一覧
 
-- [src/gas/Config.js](file:///c:/repos/CredentialTool/src/gas/Config.js): 5サイトの取得元情報、`from` 文言、タイトルフィルタ条件、Webhook URL等の管理
-- [src/gas/Scrapers.js](file:///c:/repos/CredentialTool/src/gas/Scrapers.js): 各サイトのスクレイピング・日付/タイトル/説明/URL抽出、日付書式変換（AWS: D M月 YYYY -> YYYY年M月D日）、タイトルフィルタリング
-- [src/gas/SlackService.js](file:///c:/repos/CredentialTool/src/gas/SlackService.js): Slackへの通知（新引用フォーマット：`from`、`> *タイトル*`、`> 日付`、`> 説明`、`> 詳細は[こちら](URL)`、集約エラー報告）
+- [src/gas/Config.js](file:///c:/repos/CredentialTool/src/gas/Config.js): 6サイトの取得元情報、`from` 文言、タイトルフィルタ条件、Webhook URL等の管理
+- [src/gas/Scrapers.js](file:///c:/repos/CredentialTool/src/gas/Scrapers.js): 各サイトのスクレイピング・日付/タイトル/説明/URL抽出、日付書式変換、タイトルフィルタリング
+- [src/gas/SlackService.js](file:///c:/repos/CredentialTool/src/gas/SlackService.js): Slackへの通知（引用フォーマット：`from`、`> *タイトル*`、`> 日付`、`> 説明`、`> 詳細は[こちら](URL)`、集約エラー報告）
 - [src/gas/StateService.js](file:///c:/repos/CredentialTool/src/gas/StateService.js): 連携済み情報の状態保持・重複投稿防止処理
 - [src/gas/Main.js](file:///c:/repos/CredentialTool/src/gas/Main.js): 全サイト巡回メイン処理 `executeDailyCredentialCheck` および平日定期実行トリガー
 - [src/gas/IpaScraper.js](file:///c:/repos/CredentialTool/src/gas/IpaScraper.js): 後方互換ラッパー
 - [test/gas/TestScrapers.js](file:///c:/repos/CredentialTool/test/gas/TestScrapers.js): GASエディタ上での全サイト取得テスト・エラー通知テスト
-- [test/gas/local_test.js](file:///c:/repos/CredentialTool/test/gas/local_test.js): ローカル環境（Node.js）でのパース・フィルタ単体テスト
+- [test/gas/local_test.js](file:///c:/repos/CredentialTool/test/gas/local_test.js): ローカル環境（Node.js）でのパース・フィルタ単体テスト（全6サイト）
 
 ---
 
-## 2. 情報取得元サイトと抽出・フィルタ条件（計5サイト）
+## 2. 情報取得元サイトと抽出・フィルタ条件（計6サイト）
 
 | # | サイト名 | URL | from文言 | 投稿対象フィルタ / 日付書式 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -26,6 +26,7 @@
 | 3 | 近日公開の AWS 認定（AWS Certification Coming Soon） | `https://aws.amazon.com/jp/certification/coming-soon/` | `近日公開の AWS 認定より` | 試験更新・近日公開の見出し |
 | 4 | Google Cloud 公式ブログ（トレーニングと認定） | `https://cloud.google.com/blog/ja/topics/training-certifications` | `Google Cloud 公式ブログ（トレーニングと認定）より` | フィルタなし（全件対象） |
 | 5 | The Skills Hub Blog（Microsoft Community Hub） | `https://techcommunity.microsoft.com/category/skills-hub/blog/skills-hub-blog` | `The Skills Hub Blog（Microsoft Community Hub）より` | タイトルに「Microsoft Certified」を含む |
+| 6 | Oracle University Japan 新着ニュース | `https://www.oracle.com/jp/education/news/` | `Oracle University Japan 新着ニュースより` | 各ニュース見出し・日付（YYYY年M月D日）・アンカーURL・説明を抽出 |
 
 ---
 
@@ -71,13 +72,13 @@ docs/01_overview.md の指定通り、以下の引用スタイルで投稿され
 
 ### 動作確認手順
 1. **設定確認:**
-   - GASエディタで `checkConfiguration` を実行し、プロパティやサイト一覧が読み込まれていることを確認します。
+   - GASエディタで `checkConfiguration` を実行し、プロパティや全6サイト一覧が読み込まれていることを確認します。
 2. **スクレイピング & フィルタテスト:**
-   - `TestScrapers.gs` の `testScrapeAllSites` を実行し、各サイトの `from`、タイトル、日付（AWSブログの `YYYY年M月D日` 表記など）、説明、URL、およびフィルタ適用結果をログで確認します（Slackへの投稿は行われません）。
+   - `TestScrapers.gs` の `testScrapeAllSites` を実行し、全6サイトの `from`、タイトル、日付、説明、URL、およびフィルタ適用結果をログで確認します（Slackへの投稿は行われません）。
 3. **エラー集約通知テスト:**
    - `TestScrapers.gs` の `testAggregatedErrorNotification` を実行し、エラー集約通知が正しく届くかテストできます。
 4. **本番実行テスト:**
-   - `executeDailyCredentialCheck` を実行すると、全サイトの未連携情報がSlackへ通知されます。
+   - `executeDailyCredentialCheck` を実行すると、全6サイトの未連携情報がSlackへ通知されます。
 
 ---
 

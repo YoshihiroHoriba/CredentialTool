@@ -59,6 +59,9 @@ const Scrapers = {
         case 'ms_skills_hub':
           items = this.parseMsSkillsHub(res.content, site);
           break;
+        case 'oracle_news':
+          items = this.parseOracleNews(res.content, site);
+          break;
         default:
           throw new Error(`未対応のサイトIDです: ${site.id}`);
       }
@@ -475,6 +478,55 @@ const Scrapers = {
         title: linkText,
         description: '',
         url: fullUrl,
+        siteName: site.name
+      });
+    }
+
+    return items;
+  },
+
+  /**
+   * 6. Oracle University Japan 新着ニュースのパース
+   */
+  parseOracleNews(html, site) {
+    const items = [];
+    // <h3 id="y..."> から 次の <h3 または 終了まで
+    const sectionRegex = /<h3\s+id=["']([^"']+)["'][^>]*>([\s\S]*?)<\/h3>([\s\S]*?)(?=<h3\s+id=["']y|$)/gi;
+    let match;
+
+    while ((match = sectionRegex.exec(html)) !== null) {
+      const sectionId = match[1];
+      // ニュース項目は id が "y" で始まるもの（例: "y20261124"）
+      if (!sectionId.startsWith('y')) continue;
+
+      const rawHeading = this._cleanText(match[2]);
+      const body = match[3];
+
+      // タイトルと日付の分離
+      // 例: "新資格 Oracle Certified Java Programmer, Silver SE 25 リリース (2026/11/24)"
+      let title = rawHeading;
+      let date = '';
+      const dateMatch = /\((\d{4})\/(\d{1,2})\/(\d{1,2})\)\s*$/.exec(rawHeading);
+      if (dateMatch) {
+        title = rawHeading.replace(/\s*\(\d{4}\/\d{1,2}\/\d{1,2}\)\s*$/, '').trim();
+        date = `${dateMatch[1]}年${dateMatch[2]}月${dateMatch[3]}日`;
+      }
+
+      // 説明文（h3直後の<p>タグ等）
+      let description = '';
+      const pMatch = /<p[^>]*>([\s\S]*?)<\/p>/i.exec(body);
+      if (pMatch) {
+        description = this._cleanText(pMatch[1]).slice(0, 250);
+      }
+
+      // 詳細情報URL（アンカーリンク）
+      const itemUrl = `${site.url}#${sectionId}`;
+
+      items.push({
+        date: date,
+        title: title,
+        description: description,
+        url: itemUrl,
         siteName: site.name
       });
     }
