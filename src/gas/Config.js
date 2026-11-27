@@ -65,6 +65,12 @@ const TARGET_SITES = [
     url: 'https://www.lpi.org/ja/articles/region/japan-ja/',
     // カスタムUser-Agentでは403になるためGAS標準のUser-Agentを使用
     useDefaultUserAgent: true
+  },
+  {
+    id: 'cisco_learning',
+    name: 'Learn with Cisco - Cisco Blogs',
+    from: 'Learn with Cisco - Cisco Blogsより',
+    url: 'https://blogs.cisco.com/learning/feed'
   }
 ];
 

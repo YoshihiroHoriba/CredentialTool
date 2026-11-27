@@ -75,6 +75,9 @@ const Scrapers = {
         case 'lpi_articles':
           items = this.parseLpiArticles(res.content, site);
           break;
+        case 'cisco_learning':
+          items = this.parseCiscoLearningRss(res.content, site);
+          break;
         default:
           throw new Error(`未対応のサイトIDです: ${site.id}`);
       }
@@ -502,6 +505,26 @@ const Scrapers = {
    * 6. Oracle認定資格ニュース（Googleニュース RSS）のパース
    */
   parseOracleGoogleNewsRss(xml, site) {
+    // GoogleニュースRSSのdescriptionはタイトル・媒体名リンクのみのため空文字とする
+    return this._parseRssItems(xml, site, { includeDescription: false });
+  },
+
+  /**
+   * 9. Learn with Cisco - Cisco Blogs（RSS）のパース
+   */
+  parseCiscoLearningRss(xml, site) {
+    return this._parseRssItems(xml, site, { includeDescription: true });
+  },
+
+  /**
+   * RSS 2.0 フィード共通パーサー
+   * @private
+   * @param {string} xml RSS XML文字列
+   * @param {Object} site サイト設定
+   * @param {Object} [options] オプション { includeDescription?: boolean }
+   * @return {Array<Object>}
+   */
+  _parseRssItems(xml, site, options = {}) {
     const items = [];
     const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
     let match;
@@ -522,10 +545,18 @@ const Scrapers = {
         date = this._formatRssDateJst(this._cleanText(pubDateMatch[1]));
       }
 
+      let description = '';
+      if (options.includeDescription) {
+        const descMatch = /<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/i.exec(block);
+        if (descMatch) {
+          description = this._cleanText(descMatch[1]).slice(0, 250);
+        }
+      }
+
       items.push({
         date: date,
         title: title,
-        description: '', // GoogleニュースRSSのdescriptionはタイトル・媒体名リンクのみのため空文字
+        description: description,
         url: link,
         siteName: site.name
       });

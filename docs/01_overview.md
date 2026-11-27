@@ -32,6 +32,8 @@
   - fromを「LinuC ニュース・トピックス一覧より」とする
 - [LPI 公式ブログ・記事一覧（日本語）](https://www.lpi.org/ja/articles/region/japan-ja/)
   - fromを「LPI 公式ブログ・記事一覧（日本語）より」とする
+- [Learn with Cisco - Cisco Blogs](https://blogs.cisco.com/learning/feed)
+  - fromを「Learn with Cisco - Cisco Blogsより」とする
 
 
 ## 投稿先
