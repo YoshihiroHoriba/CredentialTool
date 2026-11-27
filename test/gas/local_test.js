@@ -2,12 +2,21 @@
 const fs = require('fs');
 const path = require('path');
 
+const configCode = fs.readFileSync(path.join(__dirname, '../../src/gas/Config.js'), 'utf8');
 const scrapersCode = fs.readFileSync(path.join(__dirname, '../../src/gas/Scrapers.js'), 'utf8');
 
 eval(`
+${configCode}
 ${scrapersCode}
+global.TARGET_SITES = TARGET_SITES;
+global.CONFIG = CONFIG;
 global.Scrapers = Scrapers;
 `);
+
+console.log('--- 0. Config TARGET_SITES Check ---');
+if (TARGET_SITES.length !== 8) {
+  throw new Error(`Expected 8 target sites in Config.js, got ${TARGET_SITES.length}`);
+}
 
 console.log('--- 1. IPA Parser Test ---');
 const ipaHtml = `
@@ -155,7 +164,92 @@ if (msItems.length !== 1 || msItems[0].from !== 'The Skills Hub Blog（Microsoft
   throw new Error('MS Skills Hub parser or filter failed');
 }
 
-console.log('\n--- 6. Slack Message Format Preview Test ---');
+console.log('\n--- 6. Oracle Google News RSS Parser Test ---');
+const oracleXml = `
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <item>
+      <title>ORACLE MASTER Platinum DBA 2019 実技試験ハンズオン体験会を開催！ - Oracle Blogs</title>
+      <link>https://news.google.com/rss/articles/sample1?oc=5</link>
+      <pubDate>Wed, 14 Oct 2026 07:00:00 GMT</pubDate>
+      <description>&lt;a href="https://news.google.com/rss/articles/sample1?oc=5"&gt;ORACLE MASTER&lt;/a&gt;</description>
+      <source url="https://blogs.oracle.com">Oracle Blogs</source>
+    </item>
+  </channel>
+</rss>
+`;
+const oracleSite = TARGET_SITES.find(s => s.id === 'oracle_news');
+const oracleItems = Scrapers.parseOracleGoogleNewsRss(oracleXml, oracleSite).map(it => ({ ...it, from: oracleSite.from }));
+console.log('Oracle RSS Items:', oracleItems.length, '| Date:', oracleItems[0]?.date);
+if (oracleItems.length !== 1 ||
+    oracleItems[0].from !== 'Oracle認定資格のニュースより' ||
+    oracleItems[0].date !== '2026年10月14日' ||
+    oracleItems[0].url !== 'https://news.google.com/rss/articles/sample1?oc=5') {
+  throw new Error('Oracle Google News RSS parser failed');
+}
+
+console.log('\n--- 7. LinuC News Parser Test ---');
+const linucHtml = `
+<section class="container app-news-index">
+  <!-- <ul>
+    <li class="app-news-item">
+      <span class="app-news-date">2018.02.23</span>
+      <span class="app-news-body"><a href="#" target="_blank">ダミーお知らせ</a></span>
+    </li>
+  </ul> -->
+  <ul>
+    <li class="app-news-item">
+      <span class="app-news-date">2026.11.24</span>
+      <span class="app-news-body"><a href="https://linuc.org/study/samples/8727/" target="_blank">
+        Linux技術者認定試験 LinuCレベル２ 201試験に関するサンプル問題を追加しました。
+      </a></span>
+    </li>
+    <li class="app-news-item">
+      <span class="app-news-date">2026.10.26</span>
+      <span class="app-news-body"><a href="/campaign/202610.html" target="_blank">
+        LinuC レベル3・4 再受験無料キャンペーン実施中！
+      </a></span>
+    </li>
+  </ul>
+</section>
+`;
+const linucSite = TARGET_SITES.find(s => s.id === 'linuc_news');
+const linucItems = Scrapers.parseLinuCNews(linucHtml, linucSite).map(it => ({ ...it, from: linucSite.from }));
+console.log('LinuC Items:', linucItems.length, '| First Date:', linucItems[0]?.date);
+if (linucItems.length !== 2 ||
+    linucItems[0].from !== 'LinuC ニュース・トピックス一覧より' ||
+    linucItems[0].date !== '2026年11月24日' ||
+    linucItems[1].url !== 'https://linuc.org/campaign/202610.html') {
+  throw new Error('LinuC News parser failed');
+}
+
+console.log('\n--- 8. LPI Articles Parser Test ---');
+const lpiHtml = `
+<div class="blog-list">
+  <div class="item d-md-flex">
+    <div class="image"><a href="https://www.lpi.org/ja/articles/sample-1/" class="img-bg"></a></div>
+    <div class="text">
+      <h3><a href="https://www.lpi.org/ja/articles/sample-1/">LPIの「Security Essentials」がISVマップに掲載</a></h3>
+      <div class="post-excerpt page-body">
+        <p>Linux Professional Institute（LPI）が提供する認定 &#8230; <a href="https://www.lpi.org/ja/articles/sample-1/" class="button-link">Read more</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+const lpiSite = TARGET_SITES.find(s => s.id === 'lpi_articles');
+const lpiItems = Scrapers.parseLpiArticles(lpiHtml, lpiSite).map(it => ({ ...it, from: lpiSite.from }));
+console.log('LPI Items:', lpiItems.length, '| Desc:', lpiItems[0]?.description);
+if (lpiItems.length !== 1 ||
+    lpiItems[0].from !== 'LPI 公式ブログ・記事一覧（日本語）より' ||
+    lpiItems[0].title !== 'LPIの「Security Essentials」がISVマップに掲載' ||
+    lpiItems[0].description.includes('Read more') ||
+    !lpiItems[0].description.includes('…')) {
+  throw new Error('LPI Articles parser failed');
+}
+
+console.log('\n--- 9. Slack Message Format Preview Test ---');
 const sampleItem = awsItems[0];
 const lines = [
   sampleItem.from,

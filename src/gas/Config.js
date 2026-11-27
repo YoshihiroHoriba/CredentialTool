@@ -43,6 +43,28 @@ const TARGET_SITES = [
     url: 'https://techcommunity.microsoft.com/category/skills-hub/blog/skills-hub-blog',
     // タイトルに「Microsoft Certified」の表記があるもののみ
     titleFilter: (title) => title.includes('Microsoft Certified')
+  },
+  {
+    id: 'oracle_news',
+    name: 'Oracle認定資格ニュース from Googleニュース',
+    from: 'Oracle認定資格のニュースより',
+    url: 'https://news.google.com/rss/search?q=%22ORACLE%20MASTER%22%20OR%20%22Oracle%20%E8%AA%8D%E5%AE%9A%E8%B3%87%E6%A0%BC%22%20OR%20%22Oracle%20Cloud%20Infrastructure%20%E8%AA%8D%E5%AE%9A%22&hl=ja&gl=JP&ceid=JP:ja'
+  },
+  {
+    id: 'linuc_news',
+    name: 'LinuC ニュース・トピックス一覧',
+    from: 'LinuC ニュース・トピックス一覧より',
+    url: 'https://linuc.org/news/',
+    // 全期間（1000件以上）が1ページに掲載されているため最新件数に制限
+    maxItems: 30
+  },
+  {
+    id: 'lpi_articles',
+    name: 'LPI 公式ブログ・記事一覧（日本語）',
+    from: 'LPI 公式ブログ・記事一覧（日本語）より',
+    url: 'https://www.lpi.org/ja/articles/region/japan-ja/',
+    // カスタムUser-Agentでは403になるためGAS標準のUser-Agentを使用
+    useDefaultUserAgent: true
   }
 ];
 

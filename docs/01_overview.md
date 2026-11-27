@@ -26,6 +26,13 @@
 - [The Skills Hub Blog（Microsoft Community Hub）](https://techcommunity.microsoft.com/category/skills-hub/blog/skills-hub-blog)
   - fromを「The Skills Hub Blog（Microsoft Community Hub）より」とする
   - タイトルに「Microsoft Certified」の表記があるもののみをSlackに投稿する
+- [Oracle認定資格ニュース from Googleニュース](https://news.google.com/rss/search?q=%22ORACLE%20MASTER%22%20OR%20%22Oracle%20%E8%AA%8D%E5%AE%9A%E8%B3%87%E6%A0%BC%22%20OR%20%22Oracle%20Cloud%20Infrastructure%20%E8%AA%8D%E5%AE%9A%22&hl=ja&gl=JP&ceid=JP:ja)
+  - fromを「Oracle認定資格のニュースより」とする
+- [LinuC ニュース・トピックス一覧](https://linuc.org/news/)
+  - fromを「LinuC ニュース・トピックス一覧より」とする
+- [LPI 公式ブログ・記事一覧（日本語）](https://www.lpi.org/ja/articles/region/japan-ja/)
+  - fromを「LPI 公式ブログ・記事一覧（日本語）より」とする
+
 
 ## 投稿先
 

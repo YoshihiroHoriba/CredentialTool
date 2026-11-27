@@ -6,7 +6,7 @@
 
 ## 1. 作成・更新ファイル一覧
 
-- [src/gas/Config.js](file:///c:/repos/CredentialTool/src/gas/Config.js): 5サイトの取得元情報、`from` 文言、タイトルフィルタ条件、Webhook URL等の管理
+- [src/gas/Config.js](file:///c:/repos/CredentialTool/src/gas/Config.js): 8サイトの取得元情報、`from` 文言、タイトルフィルタ条件、Webhook URL等の管理
 - [src/gas/Scrapers.js](file:///c:/repos/CredentialTool/src/gas/Scrapers.js): 各サイトのスクレイピング・日付/タイトル/説明/URL抽出、日付書式変換（AWS: D M月 YYYY -> YYYY年M月D日）、タイトルフィルタリング
 - [src/gas/SlackService.js](file:///c:/repos/CredentialTool/src/gas/SlackService.js): Slackへの通知（新引用フォーマット：`from`、`> *タイトル*`、`> 日付`、`> 説明`、`> 詳細は[こちら](URL)`、集約エラー報告）
 - [src/gas/StateService.js](file:///c:/repos/CredentialTool/src/gas/StateService.js): 連携済み情報の状態保持・重複投稿防止処理
@@ -17,7 +17,7 @@
 
 ---
 
-## 2. 情報取得元サイトと抽出・フィルタ条件（計5サイト）
+## 2. 情報取得元サイトと抽出・フィルタ条件（計8サイト）
 
 | # | サイト名 | URL | from文言 | 投稿対象フィルタ / 日付書式 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -26,6 +26,9 @@
 | 3 | 近日公開の AWS 認定（AWS Certification Coming Soon） | `https://aws.amazon.com/jp/certification/coming-soon/` | `近日公開の AWS 認定より` | 試験更新・近日公開の見出し |
 | 4 | Google Cloud 公式ブログ（トレーニングと認定） | `https://cloud.google.com/blog/ja/topics/training-certifications` | `Google Cloud 公式ブログ（トレーニングと認定）より` | フィルタなし（全件対象） |
 | 5 | The Skills Hub Blog（Microsoft Community Hub） | `https://techcommunity.microsoft.com/category/skills-hub/blog/skills-hub-blog` | `The Skills Hub Blog（Microsoft Community Hub）より` | タイトルに「Microsoft Certified」を含む |
+| 6 | Oracle認定資格ニュース from Googleニュース | `https://news.google.com/rss/search?q=...` | `Oracle認定資格のニュースより` | フィルタなし（RSS全件対象、`pubDate`をJSTの`YYYY年M月D日`に変換） |
+| 7 | LinuC ニュース・トピックス一覧 | `https://linuc.org/news/` | `LinuC ニュース・トピックス一覧より` | フィルタなし（最新30件を対象、`YYYY.MM.DD`を`YYYY年M月D日`に変換） |
+| 8 | LPI 公式ブログ・記事一覧（日本語） | `https://www.lpi.org/ja/articles/region/japan-ja/` | `LPI 公式ブログ・記事一覧（日本語）より` | フィルタなし（全件対象、GAS標準User-Agentで取得） |
 
 ---
 

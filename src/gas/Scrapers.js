@@ -7,15 +7,20 @@ const Scrapers = {
   /**
    * 共通HTTP取得関数
    * @param {string} url 取得先URL
+   * @param {Object} [options] 取得オプション { useDefaultUserAgent?: boolean }
    * @return {{ statusCode: number, content: string }}
    */
-  fetchUrl(url) {
+  fetchUrl(url, options = {}) {
+    const headers = {
+      'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8'
+    };
+    if (!options.useDefaultUserAgent) {
+      headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    }
+
     const response = UrlFetchApp.fetch(url, {
       method: 'get',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8'
-      },
+      headers: headers,
       muteHttpExceptions: true
     });
 
@@ -31,7 +36,9 @@ const Scrapers = {
    * @return {Array<Object>} ニュース一覧 [{ from, date, title, description, url, siteName }]
    */
   scrapeSite(site) {
-    const res = this.fetchUrl(site.url);
+    const res = this.fetchUrl(site.url, {
+      useDefaultUserAgent: Boolean(site.useDefaultUserAgent)
+    });
 
     // 1. エラー応答チェック（ステータスコードが200以外）
     if (res.statusCode !== 200) {
@@ -58,6 +65,15 @@ const Scrapers = {
           break;
         case 'ms_skills_hub':
           items = this.parseMsSkillsHub(res.content, site);
+          break;
+        case 'oracle_news':
+          items = this.parseOracleGoogleNewsRss(res.content, site);
+          break;
+        case 'linuc_news':
+          items = this.parseLinuCNews(res.content, site);
+          break;
+        case 'lpi_articles':
+          items = this.parseLpiArticles(res.content, site);
           break;
         default:
           throw new Error(`未対応のサイトIDです: ${site.id}`);
@@ -483,6 +499,174 @@ const Scrapers = {
   },
 
   /**
+   * 6. Oracle認定資格ニュース（Googleニュース RSS）のパース
+   */
+  parseOracleGoogleNewsRss(xml, site) {
+    const items = [];
+    const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
+    let match;
+
+    while ((match = itemRegex.exec(xml)) !== null) {
+      const block = match[1];
+
+      const titleMatch = /<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i.exec(block);
+      const linkMatch = /<link>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/link>/i.exec(block);
+      const pubDateMatch = /<pubDate>([\s\S]*?)<\/pubDate>/i.exec(block);
+
+      const title = titleMatch ? this._cleanText(titleMatch[1]) : '';
+      const link = linkMatch ? this._cleanText(linkMatch[1]) : '';
+      if (!title || !link) continue;
+
+      let date = '';
+      if (pubDateMatch) {
+        date = this._formatRssDateJst(this._cleanText(pubDateMatch[1]));
+      }
+
+      items.push({
+        date: date,
+        title: title,
+        description: '', // GoogleニュースRSSのdescriptionはタイトル・媒体名リンクのみのため空文字
+        url: link,
+        siteName: site.name
+      });
+    }
+
+    return items;
+  },
+
+  /**
+   * 7. LinuC ニュース・トピックス一覧のパース
+   */
+  parseLinuCNews(html, site) {
+    const items = [];
+    // HTMLコメント内のダミー要素を除外してからパース
+    const cleanedHtml = html.replace(/<!--[\s\S]*?-->/g, '');
+    const itemRegex = /<li[^>]*class=["'][^"']*app-news-item[^"']*["'][^>]*>([\s\S]*?)<\/li>/gi;
+    const maxItems = site.maxItems || 30;
+    let match;
+
+    while ((match = itemRegex.exec(cleanedHtml)) !== null) {
+      if (items.length >= maxItems) break;
+
+      const block = match[1];
+
+      // 日付（例: 2026.11.24 -> 2026年11月24日）
+      const dateMatch = /<span[^>]*class=["'][^"']*app-news-date[^"']*["'][^>]*>([\s\S]*?)<\/span>/i.exec(block);
+      const rawDate = dateMatch ? this._cleanText(dateMatch[1]) : '';
+      const date = this._formatDotDate(rawDate);
+
+      // リンクとタイトル
+      const linkMatch = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i.exec(block);
+      if (!linkMatch) continue;
+
+      let link = linkMatch[1].trim();
+      if (link.startsWith('/')) {
+        link = 'https://linuc.org' + link;
+      }
+      const title = this._cleanText(linkMatch[2]);
+
+      if (!title || !link || link === '#') continue;
+
+      items.push({
+        date: date,
+        title: title,
+        description: '', // LinuCニュース一覧には概要文がないため空文字
+        url: link,
+        siteName: site.name
+      });
+    }
+
+    return items;
+  },
+
+  /**
+   * 8. LPI 公式ブログ・記事一覧（日本語）のパース
+   */
+  parseLpiArticles(html, site) {
+    const items = [];
+    const seenUrls = new Set();
+
+    // <div class="blog-list"> 配下の各記事ブロック（<div class="text">...</div>）を抽出
+    const textBlockRegex = /<div[^>]*class=["'][^"']*\btext\b[^"']*["'][^>]*>([\s\S]*?)(?=<div[^>]*class=["'][^"']*\bitem\b|<div[^>]*class=["'][^"']*(?:pagination|nav-links|pager)[^"']*["']|<\/article>|$)/gi;
+    let match;
+
+    while ((match = textBlockRegex.exec(html)) !== null) {
+      const block = match[1];
+
+      // タイトルとURL（<h3><a href="...">タイトル</a></h3>）
+      const h3Match = /<h3[^>]*>[\s\S]*?<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h3>/i.exec(block);
+      if (!h3Match) continue;
+
+      let link = h3Match[1].trim();
+      if (link.startsWith('/')) {
+        link = 'https://www.lpi.org' + link;
+      }
+      const title = this._cleanText(h3Match[2]);
+
+      if (!title || !link || seenUrls.has(link)) continue;
+      seenUrls.add(link);
+
+      // 日付（一覧に<time>要素が存在する場合のみ抽出）
+      let date = '';
+      const timeMatch = /<time[^>]*datetime=["']([^"']+)["'][^>]*>([\s\S]*?)<\/time>/i.exec(block) ||
+                        /<time[^>]*>([\s\S]*?)<\/time>/i.exec(block);
+      if (timeMatch) {
+        const dt = timeMatch[1] || '';
+        const dtMatch = /(\d{4})-(\d{2})-(\d{2})/.exec(dt);
+        if (dtMatch) {
+          date = `${parseInt(dtMatch[1], 10)}年${parseInt(dtMatch[2], 10)}月${parseInt(dtMatch[3], 10)}日`;
+        } else {
+          date = this._cleanText(timeMatch[2] || timeMatch[1]);
+        }
+      }
+
+      // 説明（post-excerpt 内の本文抜粋。「Read more」リンクは除外）
+      let description = '';
+      const excerptMatch = /<div[^>]*class=["'][^"']*post-excerpt[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(block);
+      if (excerptMatch) {
+        const cleanedExcerpt = excerptMatch[1].replace(/<a[^>]*class=["'][^"']*button-link[^"']*["'][^>]*>[\s\S]*?<\/a>/gi, '');
+        description = this._cleanText(cleanedExcerpt).slice(0, 250);
+      }
+
+      items.push({
+        date: date,
+        title: title,
+        description: description,
+        url: link,
+        siteName: site.name
+      });
+    }
+
+    return items;
+  },
+
+  /**
+   * RSSのpubDate文字列をJST基準の「YYYY年M月D日」形式に変換
+   * @private
+   */
+  _formatRssDateJst(rawDate) {
+    if (!rawDate) return '';
+    const parsed = new Date(rawDate);
+    if (isNaN(parsed.getTime())) return rawDate;
+    // UTC+9（JST）に変換して年月日を抽出
+    const jst = new Date(parsed.getTime() + 9 * 60 * 60 * 1000);
+    return `${jst.getUTCFullYear()}年${jst.getUTCMonth() + 1}月${jst.getUTCDate()}日`;
+  },
+
+  /**
+   * ドット区切りの日付（YYYY.MM.DD）を「YYYY年M月D日」形式に変換
+   * @private
+   */
+  _formatDotDate(rawDate) {
+    if (!rawDate) return '';
+    const match = /(\d{4})\.(\d{1,2})\.(\d{1,2})/.exec(rawDate);
+    if (match) {
+      return `${parseInt(match[1], 10)}年${parseInt(match[2], 10)}月${parseInt(match[3], 10)}日`;
+    }
+    return rawDate;
+  },
+
+  /**
    * テキストクリーニングヘルパー
    * @private
    */
@@ -490,6 +674,8 @@ const Scrapers = {
     if (!text) return '';
     return text
       .replace(/<[^>]+>/g, '')
+      .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+      .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
       .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
