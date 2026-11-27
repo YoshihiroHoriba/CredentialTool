@@ -72,6 +72,14 @@ const TARGET_SITES = [
     name: 'Learn with Cisco - Cisco Blogs',
     from: 'Learn with Cisco - Cisco Blogsより',
     url: 'https://blogs.cisco.com/learning/feed'
+  },
+  {
+    id: 'comptia_press',
+    name: 'CompTIA プレスリリース（日本語公式）',
+    from: 'CompTIA プレスリリース（日本語公式）より',
+    url: 'https://www.comptia.org/ja-jp/about-us/news/press-releases/',
+    // 全期間のプレスリリース（100件以上）が1ページに掲載されているため最新件数に制限
+    maxItems: 30
   }
 ];
 

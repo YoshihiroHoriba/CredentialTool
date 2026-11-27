@@ -17,8 +17,8 @@ global.IpaScraper = IpaScraper;
 `);
 
 console.log('--- 0. Config TARGET_SITES Check ---');
-if (TARGET_SITES.length !== 9) {
-  throw new Error(`Expected 9 target sites in Config.js, got ${TARGET_SITES.length}`);
+if (TARGET_SITES.length !== 10) {
+  throw new Error(`Expected 10 target sites in Config.js, got ${TARGET_SITES.length}`);
 }
 
 console.log('--- 1. IPA Parser Test ---');
@@ -282,7 +282,30 @@ if (ciscoItems.length !== 1 ||
   throw new Error('Cisco Learning RSS parser failed');
 }
 
-console.log('\n--- 10. Slack Message Format Preview Test ---');
+console.log('\n--- 10. CompTIA Press Releases Parser Test ---');
+const comptiaHtml = `
+<article>
+  <div class="pt-4 content-area" data-automation-id="content-page-main-content-area">
+    <div class="RichTextBlock">
+      <h4><a href="https://www.comptia.org/ja-jp/about-us/news/press-releases/sample-1/" tabindex="-1">CompTIA DataSys+ V2 発表</a></h4>
+      <p>2026年10月13日</p>
+      <h4><a href="/ja-jp/about-us/news/press-releases/sample-2/" tabindex="-1">CompTIAの分析レポート</a></h4>
+      <p>2026年10月2日</p>
+    </div>
+  </div>
+</article>
+`;
+const comptiaSite = TARGET_SITES.find(s => s.id === 'comptia_press');
+const comptiaItems = Scrapers.parseCompTiaPressReleases(comptiaHtml, comptiaSite).map(it => ({ ...it, from: comptiaSite.from }));
+console.log('CompTIA Items:', comptiaItems.length, '| First Date:', comptiaItems[0]?.date);
+if (comptiaItems.length !== 2 ||
+    comptiaItems[0].from !== 'CompTIA プレスリリース（日本語公式）より' ||
+    comptiaItems[0].date !== '2026年10月13日' ||
+    comptiaItems[1].url !== 'https://www.comptia.org/ja-jp/about-us/news/press-releases/sample-2/') {
+  throw new Error('CompTIA Press Releases parser failed');
+}
+
+console.log('\n--- 11. Slack Message Format Preview Test ---');
 const sampleItem = awsItems[0];
 const lines = [
   sampleItem.from,

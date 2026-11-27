@@ -80,6 +80,9 @@ const Scrapers = {
         case 'cisco_learning':
           items = this.parseCiscoLearningRss(res.content, site);
           break;
+        case 'comptia_press':
+          items = this.parseCompTiaPressReleases(res.content, site);
+          break;
         default:
           throw new Error(`未対応のサイトIDです: ${site.id}`);
       }
@@ -655,6 +658,51 @@ const Scrapers = {
         date: date,
         title: title,
         description: description,
+        url: link,
+        siteName: site.name
+      });
+    }
+
+    return items;
+  },
+
+  /**
+   * 10. CompTIA プレスリリース（日本語公式）のパース
+   */
+  parseCompTiaPressReleases(html, site) {
+    const items = [];
+    const seenUrls = new Set();
+    const maxItems = site.maxItems || 30;
+
+    // 記事一覧は本文エリア（content-page-main-content-area）内に出力されるため、
+    // ナビゲーション等のリンク誤抽出を防ぐ目的で対象範囲を絞り込む
+    const areaMatch = /data-automation-id=["']content-page-main-content-area["'][^>]*>([\s\S]*?)<\/article>/i.exec(html);
+    const targetHtml = areaMatch ? areaMatch[1] : html;
+
+    // <h4><a href="...">タイトル</a></h4> に続いて <p>YYYY年M月D日</p> が並ぶ構造を抽出
+    const itemRegex = /<h4[^>]*>[\s\S]*?<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h4>\s*(?:<p[^>]*>([\s\S]*?)<\/p>)?/gi;
+    let match;
+
+    while ((match = itemRegex.exec(targetHtml)) !== null) {
+      if (items.length >= maxItems) break;
+
+      let link = match[1].trim();
+      if (link.startsWith('/')) {
+        link = 'https://www.comptia.org' + link;
+      }
+      const title = this._cleanText(match[2]);
+      const dateText = match[3] ? this._cleanText(match[3]) : '';
+      // 日付文字列でない段落を誤って日付として扱わないよう年月日形式のみを採用
+      const dateMatch = /(\d{4}年\d{1,2}月\d{1,2}日)/.exec(dateText);
+      const date = dateMatch ? dateMatch[1] : '';
+
+      if (!title || !link || seenUrls.has(link)) continue;
+      seenUrls.add(link);
+
+      items.push({
+        date: date,
+        title: title,
+        description: '', // CompTIA一覧ページには概要文がないため空文字
         url: link,
         siteName: site.name
       });

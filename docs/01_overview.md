@@ -34,7 +34,8 @@
   - fromを「LPI 公式ブログ・記事一覧（日本語）より」とする
 - [Learn with Cisco - Cisco Blogs](https://blogs.cisco.com/learning/feed)
   - fromを「Learn with Cisco - Cisco Blogsより」とする
-
+- [CompTIA プレスリリース（日本語公式）](https://www.comptia.org/ja-jp/about-us/news/press-releases/)
+  - fromを「CompTIA プレスリリース（日本語公式）より」とする
 
 ## 投稿先
 
