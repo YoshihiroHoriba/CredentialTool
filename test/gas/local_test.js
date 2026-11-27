@@ -14,8 +14,8 @@ global.Scrapers = Scrapers;
 `);
 
 console.log('--- 0. Config TARGET_SITES Check ---');
-if (TARGET_SITES.length !== 8) {
-  throw new Error(`Expected 8 target sites in Config.js, got ${TARGET_SITES.length}`);
+if (TARGET_SITES.length !== 9) {
+  throw new Error(`Expected 9 target sites in Config.js, got ${TARGET_SITES.length}`);
 }
 
 console.log('--- 1. IPA Parser Test ---');
@@ -249,7 +249,32 @@ if (lpiItems.length !== 1 ||
   throw new Error('LPI Articles parser failed');
 }
 
-console.log('\n--- 9. Slack Message Format Preview Test ---');
+console.log('\n--- 9. Learn with Cisco - Cisco Blogs RSS Parser Test ---');
+const ciscoXml = `
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <item>
+      <title>Your Year-End Guide to Cisco U. Learning Deals</title>
+      <link>https://blogs.cisco.com/learning/learning-deals-2026/</link>
+      <pubDate>Sat, 21 Nov 2026 00:16:36 +0000</pubDate>
+      <description><![CDATA[Cisco U. Learning Deals offer significant year-end savings on various Cisco learning products.]]></description>
+    </item>
+  </channel>
+</rss>
+`;
+const ciscoSite = TARGET_SITES.find(s => s.id === 'cisco_learning');
+const ciscoItems = Scrapers.parseCiscoLearningRss(ciscoXml, ciscoSite).map(it => ({ ...it, from: ciscoSite.from }));
+console.log('Cisco RSS Items:', ciscoItems.length, '| Date:', ciscoItems[0]?.date);
+if (ciscoItems.length !== 1 ||
+    ciscoItems[0].from !== 'Learn with Cisco - Cisco Blogsより' ||
+    ciscoItems[0].date !== '2026年11月21日' ||
+    !ciscoItems[0].description.includes('Cisco U. Learning Deals') ||
+    ciscoItems[0].url !== 'https://blogs.cisco.com/learning/learning-deals-2026/') {
+  throw new Error('Cisco Learning RSS parser failed');
+}
+
+console.log('\n--- 10. Slack Message Format Preview Test ---');
 const sampleItem = awsItems[0];
 const lines = [
   sampleItem.from,
