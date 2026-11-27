@@ -4,13 +4,16 @@ const path = require('path');
 
 const configCode = fs.readFileSync(path.join(__dirname, '../../src/gas/Config.js'), 'utf8');
 const scrapersCode = fs.readFileSync(path.join(__dirname, '../../src/gas/Scrapers.js'), 'utf8');
+const ipaScraperCode = fs.readFileSync(path.join(__dirname, '../../src/gas/IpaScraper.js'), 'utf8');
 
 eval(`
 ${configCode}
 ${scrapersCode}
+${ipaScraperCode}
 global.TARGET_SITES = TARGET_SITES;
 global.CONFIG = CONFIG;
 global.Scrapers = Scrapers;
+global.IpaScraper = IpaScraper;
 `);
 
 console.log('--- 0. Config TARGET_SITES Check ---');
@@ -42,6 +45,11 @@ const ipaItems = Scrapers.parseIpa(ipaHtml, ipaSite).map(it => ({ ...it, from: i
 console.log('IPA Items:', ipaItems.length);
 if (ipaItems.length !== 1 || ipaItems[0].from !== 'IPA(情報処理推進機構)の最新情報より') {
   throw new Error('IPA parser failed');
+}
+// 後方互換ラッパー IpaScraper.parseHtml の動作も検証
+const ipaCompatItems = IpaScraper.parseHtml(ipaHtml, '試験情報');
+if (ipaCompatItems.length !== 1 || ipaCompatItems[0].title !== '基本情報技術者試験の案内') {
+  throw new Error('IpaScraper compatibility wrapper failed');
 }
 
 console.log('--- 2. AWS Blog Parser, Date Format & Title Filter Test ---');

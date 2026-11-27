@@ -108,7 +108,8 @@ const SlackService = {
       ]
     };
 
-    // 各エラーの詳細ブロックを追加（Slackブロック数制限50を考慮）
+    // Slackブロック数上限（1メッセージあたり50ブロック）および本文長制限を超えないよう、
+    // 詳細表示は最大10件までに制限する
     errors.slice(0, 10).forEach((err, index) => {
       payload.blocks.push({
         type: 'section',

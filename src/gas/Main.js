@@ -39,7 +39,7 @@ function executeDailyCredentialCheck() {
       });
     }
 
-    // サイト間の負荷軽減のため少し待機（0.5秒）
+    // 連続アクセスによる相手先サーバーへの負荷軽減およびレート制限回避のため0.5秒待機する
     Utilities.sleep(500);
   }
 
@@ -47,7 +47,7 @@ function executeDailyCredentialCheck() {
   console.log(`未連携の新着情報件数: ${unpostedItems.length} 件`);
   if (unpostedItems.length > 0) {
     const postedItems = [];
-    // 古い順に流れるよう反転して投稿
+    // サイト上は新しい順で並んでいるため、Slackへ時系列（古い順）に流れるよう反転して投稿する
     const itemsToPost = unpostedItems.slice().reverse();
 
     for (const item of itemsToPost) {
@@ -55,7 +55,8 @@ function executeDailyCredentialCheck() {
         console.log(`Slackへ投稿中: [${item.siteName}] ${item.title}`);
         SlackService.postNews(item);
         postedItems.push(item);
-        Utilities.sleep(500); // レートリミット対策
+        // Slack Incoming Webhook のレートリミット（原則1秒あたり1リクエスト）対策
+        Utilities.sleep(500);
       } catch (postErr) {
         console.error(`投稿失敗: ${item.title}`, postErr);
         collectedErrors.push({

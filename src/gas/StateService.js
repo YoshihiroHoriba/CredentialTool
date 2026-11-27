@@ -87,7 +87,7 @@ const StateService = {
       }
     }
 
-    // 最新のMAX_HISTORY_COUNT件のみを保持
+    // 最新のMAX_HISTORY_COUNT件のみを保持（古いキーから順に破棄し、容量肥大化を防ぐ）
     const maxCount = CONFIG.MAX_HISTORY_COUNT || 500;
     const updatedList = Array.from(set).slice(-maxCount);
     const props = PropertiesService.getScriptProperties();

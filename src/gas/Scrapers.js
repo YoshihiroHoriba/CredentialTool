@@ -14,6 +14,8 @@ const Scrapers = {
     const headers = {
       'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8'
     };
+    // 一部サイト（LPI等）は疑似ブラウザのUser-AgentだとWAF等で403を返すため、
+    // 必要なサイトのみGAS標準のUser-Agentをそのまま使用できるよう分岐している
     if (!options.useDefaultUserAgent) {
       headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
     }
@@ -240,10 +242,8 @@ const Scrapers = {
 
     // 2. datetime属性（例: "2026-09-10T08:48:07+09:00"）からの変換フォールバック
     if (datetimeAttr) {
-      const dtMatch = /(\d{4})-(\d{2})-(\d{2})/.exec(datetimeAttr);
-      if (dtMatch) {
-        return `${parseInt(dtMatch[1], 10)}年${parseInt(dtMatch[2], 10)}月${parseInt(dtMatch[3], 10)}日`;
-      }
+      const isoFormatted = this._formatIsoDate(datetimeAttr);
+      if (isoFormatted) return isoFormatted;
     }
 
     return rawDate;
@@ -330,7 +330,7 @@ const Scrapers = {
         description = this._cleanText(pMatch[1]);
       }
 
-      // 日付: スクリプト内のタイムスタンプ検索
+      // 日付: スクリプト内のタイムスタンプ検索（DOM側に日付要素が出力されないため近傍のUnix秒を利用）
       let date = '';
       const idx = html.indexOf(link);
       if (idx !== -1) {
@@ -338,8 +338,7 @@ const Scrapers = {
         const timeMatch = /\[(\d{10})\]/.exec(contextStr);
         if (timeMatch) {
           const timestampSec = parseInt(timeMatch[1], 10);
-          const d = new Date(timestampSec * 1000);
-          date = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+          date = this._formatDateJa(new Date(timestampSec * 1000));
         }
       }
 
@@ -389,8 +388,7 @@ const Scrapers = {
         const timeMatch = /\[(\d{10})\]/.exec(contextStr);
         if (timeMatch) {
           const timestampSec = parseInt(timeMatch[1], 10);
-          const d = new Date(timestampSec * 1000);
-          date = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+          date = this._formatDateJa(new Date(timestampSec * 1000));
         }
 
         let description = '';
@@ -436,8 +434,7 @@ const Scrapers = {
             const title = this._cleanText(obj.subject);
             let date = '';
             if (obj.postTime) {
-              const d = new Date(obj.postTime);
-              date = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+              date = this._formatDateJa(new Date(obj.postTime));
             }
 
             let description = '';
@@ -643,12 +640,7 @@ const Scrapers = {
                         /<time[^>]*>([\s\S]*?)<\/time>/i.exec(block);
       if (timeMatch) {
         const dt = timeMatch[1] || '';
-        const dtMatch = /(\d{4})-(\d{2})-(\d{2})/.exec(dt);
-        if (dtMatch) {
-          date = `${parseInt(dtMatch[1], 10)}年${parseInt(dtMatch[2], 10)}月${parseInt(dtMatch[3], 10)}日`;
-        } else {
-          date = this._cleanText(timeMatch[2] || timeMatch[1]);
-        }
+        date = this._formatIsoDate(dt) || this._cleanText(timeMatch[2] || timeMatch[1]);
       }
 
       // 説明（post-excerpt 内の本文抜粋。「Read more」リンクは除外）
@@ -669,6 +661,26 @@ const Scrapers = {
     }
 
     return items;
+  },
+
+  /**
+   * Dateオブジェクトを「YYYY年M月D日」形式に変換
+   * @private
+   */
+  _formatDateJa(dateObj) {
+    if (!dateObj || isNaN(dateObj.getTime())) return '';
+    return `${dateObj.getFullYear()}年${dateObj.getMonth() + 1}月${dateObj.getDate()}日`;
+  },
+
+  /**
+   * ISO形式等の「YYYY-MM-DD」を含む文字列を「YYYY年M月D日」形式に変換
+   * @private
+   */
+  _formatIsoDate(rawDate) {
+    if (!rawDate) return '';
+    const match = /(\d{4})-(\d{2})-(\d{2})/.exec(rawDate);
+    if (!match) return '';
+    return `${parseInt(match[1], 10)}年${parseInt(match[2], 10)}月${parseInt(match[3], 10)}日`;
   },
 
   /**

@@ -12,8 +12,9 @@ const TARGET_SITES = [
     id: 'ipa',
     name: 'IPA 独立行政法人情報処理推進機構',
     from: 'IPA(情報処理推進機構)の最新情報より',
+    // クエリパラメータ (?=exam) はクライアント側JSフィルタ用のため、実HTML取得元にはベースURLを指定する
     url: 'https://www.ipa.go.jp/news/index.html',
-    category: '試験情報' // ?=exam に対応
+    category: '試験情報' // ?=exam に相当するカテゴリでプログラム側で絞り込む
   },
   {
     id: 'aws_blog',
@@ -79,6 +80,7 @@ const CONFIG = {
   TARGET_SITES: TARGET_SITES,
 
   // 未連携チェックで保持する過去の投稿済みキーの最大保持件数
+  // GAS ScriptProperties の容量制限（1プロパティ9KB / 全体500KB）を超過しないよう上限を設けています
   MAX_HISTORY_COUNT: 500,
 
   /**

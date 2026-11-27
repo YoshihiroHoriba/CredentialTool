@@ -66,14 +66,15 @@ function testIpaScraperParseHtml() {
  */
 function testFetchIpaNewsLive() {
   console.log('--- ライブフェッチテスト開始 ---');
-  const items = IpaScraper.fetchNews(CONFIG.IPA_NEWS_URL, CONFIG.TARGET_CATEGORY);
+  // 引数省略時は Config.js の IPA 設定（URL・カテゴリ）が自動的に使用される
+  const items = IpaScraper.fetchNews();
   console.log(`取得成功: 合計 ${items.length} 件`);
 
   // 最新3件をプレビュー表示
   const preview = items.slice(0, 3);
   for (let i = 0; i < preview.length; i++) {
     const it = preview[i];
-    console.log(`[${i + 1}] 日付: ${it.date} | カテゴリ: ${it.category}`);
+    console.log(`[${i + 1}] 日付: ${it.date} | 取得元: ${it.from}`);
     console.log(`    タイトル: ${it.title}`);
     console.log(`    URL: ${it.url}`);
   }
